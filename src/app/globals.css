@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  --color-pe-white: #ffffff;
+  --color-pe-dark-brown: #3a2108;
+  --color-pe-brown: #794100;
+  --color-pe-gold: #aa7800;
+  --color-pe-charcoal: #1d201f;
+  --color-pe-forest: #2d4a2d;
+  --color-pe-green: #4a7c4a;
+  --color-pe-cream: #f5f0e8;
+  --color-pe-beige: #e8dcc8;
+
+  --font-serif: Georgia, "Times New Roman", serif;
+  --font-sans: system-ui, -apple-system, sans-serif;
+}
+
+body {
+  @apply bg-pe-white text-pe-charcoal font-sans antialiased;
+}
+
+h1, h2, h3 {
+  @apply font-serif text-pe-dark-brown;
+}
+
+a {
+  @apply text-pe-gold hover:text-pe-brown transition-colors;
+}
+
+input, select, textarea {
+  @apply border border-pe-beige rounded-sm px-3 py-2 w-full bg-white text-pe-charcoal
+         focus:outline-none focus:ring-1 focus:ring-pe-gold focus:border-pe-gold;
+}
+
+input[type="radio"],
+input[type="checkbox"] {
+  @apply w-4 h-4 shrink-0 p-0;
+}
+
+input[type="file"] {
+  @apply p-0 border-0 bg-transparent file:mr-3 file:px-3 file:py-2 file:border file:file:border-pe-beige
+         file:rounded-sm file:bg-pe-cream file:text-pe-charcoal file:cursor-pointer;
+}
+
+label {
+  @apply block text-sm text-pe-brown mb-1;
+}
+
+label.flex,
+label.inline-flex {
+  @apply mb-0;
+}
+
+button:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
