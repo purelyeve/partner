@@ -14,7 +14,7 @@ import { emailShell, sendEmail } from '@/lib/email'
 import { generateOrderNumber } from '@/lib/utils'
 import { getPackageShippingRates, createEasyPostShipmentId } from '@/lib/easypost'
 import { getStripe } from '@/lib/stripe'
-import { fulfillmentAddress } from '@/lib/auth'
+import { fulfillmentAddress, hasCompleteShipToAddress } from '@/lib/auth'
 import type { ApplicationStatus, DocumentStatus } from '@/lib/types'
 
 const RESALE_MIME = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'])
@@ -28,6 +28,11 @@ const registerSchema = z.object({
   businessName: z.string().optional(),
   businessStructure: z.enum(['sole_proprietor', 'llc', 'corporation', 'other']).optional(),
   businessStructureOther: z.string().optional(),
+  mailingLine1: z.string().min(3, 'Street address is required'),
+  mailingLine2: z.string().optional(),
+  mailingCity: z.string().min(2, 'City is required'),
+  mailingState: z.string().length(2, 'State is required'),
+  mailingPostalCode: z.string().min(5, 'ZIP code is required'),
   taxId: z.string().optional(),
   certificateNumber: z.string().min(2, 'Sales tax license / seller\'s permit number is required'),
   agreeToTerms: z.literal('yes', { error: 'You must agree to the Partner Terms & Wholesale Agreement' }),
@@ -50,6 +55,11 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
     businessName: String(formData.get('businessName') ?? '').trim() || undefined,
     businessStructure: String(formData.get('businessStructure') ?? '').trim() || undefined,
     businessStructureOther: formData.get('businessStructureOther') || '',
+    mailingLine1: formData.get('mailingLine1'),
+    mailingLine2: formData.get('mailingLine2') || '',
+    mailingCity: formData.get('mailingCity'),
+    mailingState: formData.get('mailingState'),
+    mailingPostalCode: formData.get('mailingPostalCode'),
     taxId: String(formData.get('taxId') ?? '').trim() || undefined,
     certificateNumber: formData.get('certificateNumber'),
     agreeToTerms: formData.get('agreeToTerms'),
@@ -110,6 +120,13 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
       business_name: data.businessName ?? '',
       business_structure: data.businessStructure ?? 'sole_proprietor',
       business_structure_other: data.businessStructureOther ?? '',
+      mailing_line1: data.mailingLine1,
+      mailing_line2: data.mailingLine2 ?? '',
+      mailing_city: data.mailingCity,
+      mailing_state: data.mailingState,
+      mailing_postal_code: data.mailingPostalCode,
+      mailing_country: 'US',
+      fulfillment_same_as_mailing: true,
       tax_id_ciphertext: taxCiphertext,
       tax_id_last4: last4,
       resale_certificate_number: data.certificateNumber,
@@ -482,6 +499,12 @@ export async function getShippingRatesAction(formData: FormData) {
 
   if (!distributor) return { error: 'Distributor not found' }
 
+  if (!hasCompleteShipToAddress(distributor)) {
+    return {
+      error: 'Add your mailing or fulfillment address in Profile before requesting shipping rates.',
+    }
+  }
+
   const { data: pkg } = await supabase
     .from('inventory_packages')
     .select('*')
@@ -532,6 +555,10 @@ export async function createPackageCheckoutAction(_prev: ActionState, formData: 
     !distributor.resale_accepted_at
   ) {
     return { error: 'Complete onboarding before purchasing inventory.' }
+  }
+
+  if (!hasCompleteShipToAddress(distributor)) {
+    return { error: 'Add your mailing or fulfillment address in Profile before purchasing inventory.' }
   }
 
   const { data: pkg } = await supabase

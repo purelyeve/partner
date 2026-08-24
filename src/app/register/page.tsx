@@ -6,7 +6,7 @@ import { PageShell } from '@/components/layout/page-shell'
 import { AgreementDocument } from '@/components/agreement-document'
 import { Alert, Button, Label } from '@/components/ui'
 import { registerAction } from '@/lib/actions'
-import { BUSINESS_STRUCTURES } from '@/lib/constants'
+import { BUSINESS_STRUCTURES, US_STATES } from '@/lib/constants'
 import { AGREEMENT_VERSION_LABEL } from '@/content/partner-agreement'
 
 export default function RegisterPage() {
@@ -82,6 +82,40 @@ export default function RegisterPage() {
                 <p className="text-xs text-pe-brown mt-1">
                   Encrypted and masked after submission. Only the last 4 digits are shown again.
                 </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h2 className="text-lg">Mailing address</h2>
+            <p className="text-sm text-pe-brown leading-relaxed">
+              Inventory packages ship to this address unless you set a different fulfillment address
+              later in your profile.
+            </p>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
+                <Label htmlFor="mailingLine1" required>Street address</Label>
+                <input id="mailingLine1" name="mailingLine1" required />
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="mailingLine2">Apt / suite (optional)</Label>
+                <input id="mailingLine2" name="mailingLine2" />
+              </div>
+              <div>
+                <Label htmlFor="mailingCity" required>City</Label>
+                <input id="mailingCity" name="mailingCity" required />
+              </div>
+              <div>
+                <Label htmlFor="mailingState" required>State</Label>
+                <select id="mailingState" name="mailingState" required defaultValue="CO">
+                  {US_STATES.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="mailingPostalCode" required>ZIP code</Label>
+                <input id="mailingPostalCode" name="mailingPostalCode" required />
               </div>
             </div>
           </section>

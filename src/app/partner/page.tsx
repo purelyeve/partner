@@ -86,6 +86,15 @@ export default async function PartnerDashboardPage() {
         </Alert>
       )}
 
+      {step === 'address' && (
+        <Alert variant="info">
+          Add your mailing or fulfillment address so we can quote shipping on inventory packages.
+          <div className="mt-3">
+            <Link href="/partner/profile"><Button>Update profile</Button></Link>
+          </div>
+        </Alert>
+      )}
+
       <div className="grid sm:grid-cols-3 gap-4">
         <Card>
           <p className="text-xs uppercase tracking-wider text-pe-brown mb-1">Status</p>

@@ -10,9 +10,11 @@ import type { InventoryPackage, ShippingRate } from '@/lib/types'
 export function PackageCheckout({
   packages,
   canPurchase,
+  needsAddress = false,
 }: {
   packages: InventoryPackage[]
   canPurchase: boolean
+  needsAddress?: boolean
 }) {
   const [selectedPkg, setSelectedPkg] = useState<InventoryPackage | null>(null)
   const [rates, setRates] = useState<ShippingRate[]>([])
@@ -37,7 +39,17 @@ export function PackageCheckout({
   if (!canPurchase) {
     return (
       <Alert variant="warning">
-        Complete onboarding (approved registration and accepted resale documentation) before purchasing inventory.
+        {needsAddress ? (
+          <>
+            Add your mailing or fulfillment address before purchasing inventory.{' '}
+            <Link href="/partner/profile">Update profile</Link>
+          </>
+        ) : (
+          <>
+            Complete onboarding (approved registration and accepted resale documentation) before
+            purchasing inventory.
+          </>
+        )}
       </Alert>
     )
   }

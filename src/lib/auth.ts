@@ -58,7 +58,19 @@ export function canPurchasePackages(distributor: Distributor): boolean {
   return (
     distributor.application_status === 'approved' &&
     distributor.agreement_signed_at !== null &&
-    distributor.resale_accepted_at !== null
+    distributor.resale_accepted_at !== null &&
+    hasCompleteShipToAddress(distributor)
+  )
+}
+
+/** Partner must have a usable ship-to before package rates / checkout. */
+export function hasCompleteShipToAddress(distributor: Distributor): boolean {
+  const addr = fulfillmentAddress(distributor)
+  return Boolean(
+    addr.line1.trim() &&
+      addr.city.trim() &&
+      addr.state.trim().length === 2 &&
+      addr.postal_code.trim().length >= 5,
   )
 }
 
@@ -70,13 +82,14 @@ export function onboardingStep(distributor: Distributor | null): string {
   if (distributor.application_status === 'removed') return 'removed'
   // Agreement is accepted at registration; remaining gate is resale doc acceptance.
   if (!distributor.resale_accepted_at) return 'resale'
+  if (!hasCompleteShipToAddress(distributor)) return 'address'
   return 'ready'
 }
 
 export function fulfillmentAddress(distributor: Distributor) {
   if (distributor.fulfillment_same_as_mailing) {
     return {
-      name: distributor.business_name,
+      name: distributor.business_name || 'Partner',
       line1: distributor.mailing_line1,
       line2: distributor.mailing_line2,
       city: distributor.mailing_city,
@@ -86,7 +99,7 @@ export function fulfillmentAddress(distributor: Distributor) {
     }
   }
   return {
-    name: distributor.business_name,
+    name: distributor.business_name || 'Partner',
     line1: distributor.fulfillment_line1,
     line2: distributor.fulfillment_line2,
     city: distributor.fulfillment_city,

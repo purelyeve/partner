@@ -9,28 +9,98 @@ function asProfile(value: unknown): Profile {
   return value as Profile
 }
 
-export default async function AdminOrdersPage() {
+const STATUSES = ['all', 'awaiting_payment', 'paid', 'fulfilled', 'cancelled'] as const
+
+export default async function AdminOrdersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string; from?: string; to?: string; q?: string }>
+}) {
   await requireAdmin()
+  const params = await searchParams
+  const status = (params.status ?? 'all').toLowerCase()
+  const from = params.from?.trim() ?? ''
+  const to = params.to?.trim() ?? ''
+  const q = params.q?.trim() ?? ''
+
   const supabase = getAdminDb()
 
-  const { data: orders, error } = await supabase
+  let query = supabase
     .from('package_orders')
     .select(`*, distributors(business_name, ${DISTRIBUTOR_PROFILE}(full_name, email))`)
     .order('created_at', { ascending: false })
+
+  if (status !== 'all' && STATUSES.includes(status as (typeof STATUSES)[number])) {
+    query = query.eq('status', status)
+  }
+  if (from) query = query.gte('created_at', `${from}T00:00:00.000Z`)
+  if (to) query = query.lte('created_at', `${to}T23:59:59.999Z`)
+
+  const { data: orders, error } = await query
+
+  const filtered = (orders ?? []).filter((o) => {
+    if (!q) return true
+    const dist = o.distributors as { business_name: string; profiles: unknown } | null
+    const profile = dist ? asProfile(dist.profiles) : null
+    const hay = [
+      o.order_number,
+      o.name_snapshot,
+      dist?.business_name,
+      profile?.email,
+      profile?.full_name,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return hay.includes(q.toLowerCase())
+  })
 
   return (
     <div className="space-y-6">
       <h1 className="text-3xl">Inventory orders</h1>
 
+      <form className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3 text-sm" method="get">
+        <label className="block">
+          <span className="block text-xs uppercase tracking-wider text-pe-brown mb-1">Partner</span>
+          <input name="q" defaultValue={q} placeholder="Name, email, or order #" />
+        </label>
+        <label className="block">
+          <span className="block text-xs uppercase tracking-wider text-pe-brown mb-1">Status</span>
+          <select name="status" defaultValue={status}>
+            <option value="all">All statuses</option>
+            <option value="awaiting_payment">Awaiting payment</option>
+            <option value="paid">Paid</option>
+            <option value="fulfilled">Fulfilled</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </label>
+        <label className="block">
+          <span className="block text-xs uppercase tracking-wider text-pe-brown mb-1">From</span>
+          <input type="date" name="from" defaultValue={from} />
+        </label>
+        <label className="block">
+          <span className="block text-xs uppercase tracking-wider text-pe-brown mb-1">To</span>
+          <input type="date" name="to" defaultValue={to} />
+        </label>
+        <div className="flex items-end gap-2">
+          <button type="submit" className="h-10 px-4 bg-pe-dark-brown text-pe-cream rounded-sm">
+            Filter
+          </button>
+          <a href="/admin/orders" className="h-10 px-3 inline-flex items-center text-pe-brown">
+            Reset
+          </a>
+        </div>
+      </form>
+
       {error && (
         <p className="text-sm text-red-600">Could not load orders: {error.message}</p>
       )}
 
-      {!error && (!orders || orders.length === 0) && (
-        <p className="text-sm text-pe-brown">No inventory orders yet.</p>
+      {!error && filtered.length === 0 && (
+        <p className="text-sm text-pe-brown">No inventory orders match these filters.</p>
       )}
 
-      {orders && orders.length > 0 && (
+      {filtered.length > 0 && (
         <div className="border border-pe-beige bg-white rounded-sm overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-pe-cream text-left">
@@ -45,7 +115,7 @@ export default async function AdminOrdersPage() {
               </tr>
             </thead>
             <tbody>
-              {orders.map((o) => {
+              {filtered.map((o) => {
                 const dist = o.distributors as { business_name: string; profiles: unknown }
                 const profile = asProfile(dist.profiles)
                 return (

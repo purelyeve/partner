@@ -4,6 +4,8 @@ const EASYPOST_API = 'https://api.easypost.com/v2'
 
 interface EasyPostAddress {
   name?: string
+  company?: string
+  phone?: string
   street1: string
   street2?: string
   city: string
@@ -12,14 +14,48 @@ interface EasyPostAddress {
   country?: string
 }
 
-/** Company ship-from address — update when client provides warehouse address. */
-const SHIP_FROM: EasyPostAddress = {
-  name: 'Purely Eve LLC',
-  street1: 'TBD Warehouse Address',
-  city: 'Denver',
-  state: 'CO',
-  zip: '80202',
-  country: 'US',
+/**
+ * Company ship-from for inventory packages (Purely Eve → partner).
+ * Set via env so the warehouse address can be updated without a code deploy.
+ */
+export function getCompanyShipFrom(): EasyPostAddress {
+  return {
+    name: process.env.EASYPOST_SHIP_FROM_NAME || 'Purely Eve LLC',
+    company: process.env.EASYPOST_SHIP_FROM_COMPANY || 'Purely Eve LLC',
+    phone: process.env.EASYPOST_SHIP_FROM_PHONE || '',
+    street1: process.env.EASYPOST_SHIP_FROM_STREET1 || 'TBD Warehouse Address',
+    street2: process.env.EASYPOST_SHIP_FROM_STREET2 || '',
+    city: process.env.EASYPOST_SHIP_FROM_CITY || 'Denver',
+    state: process.env.EASYPOST_SHIP_FROM_STATE || 'CO',
+    zip: process.env.EASYPOST_SHIP_FROM_ZIP || '80202',
+    country: process.env.EASYPOST_SHIP_FROM_COUNTRY || 'US',
+  }
+}
+
+export function isCompanyShipFromConfigured(): boolean {
+  const from = getCompanyShipFrom()
+  return Boolean(
+    from.street1 &&
+      !from.street1.toLowerCase().includes('tbd') &&
+      from.city &&
+      from.state &&
+      from.zip,
+  )
+}
+
+function shipFromPayload(): Record<string, string> {
+  const from = getCompanyShipFrom()
+  return {
+    name: from.name || 'Purely Eve LLC',
+    company: from.company || from.name || 'Purely Eve LLC',
+    phone: from.phone || '',
+    street1: from.street1,
+    street2: from.street2 || '',
+    city: from.city,
+    state: from.state,
+    zip: from.zip,
+    country: from.country || 'US',
+  }
 }
 
 export async function getPackageShippingRates(params: {
@@ -41,7 +77,7 @@ export async function getPackageShippingRates(params: {
     },
     body: JSON.stringify({
       shipment: {
-        from_address: SHIP_FROM,
+        from_address: shipFromPayload(),
         to_address: {
           name: params.to.name,
           street1: params.to.street1,
@@ -87,7 +123,7 @@ export async function getPackageShippingRates(params: {
   return rates.map(({ shipmentId: _, ...rate }) => rate)
 }
 
-/** Flat estimates when EasyPost is not configured (dev / staging). */
+/** Flat estimates when EasyPost is not configured or returns no rates. */
 function fallbackRates(weightOz: number): ShippingRate[] {
   const base = weightOz <= 96 ? 1500 : 2800
   return [
@@ -112,8 +148,16 @@ export async function createEasyPostShipmentId(params: {
     },
     body: JSON.stringify({
       shipment: {
-        from_address: SHIP_FROM,
-        to_address: params.to,
+        from_address: shipFromPayload(),
+        to_address: {
+          name: params.to.name,
+          street1: params.to.street1,
+          street2: params.to.street2 ?? '',
+          city: params.to.city,
+          state: params.to.state,
+          zip: params.to.zip,
+          country: params.to.country ?? 'US',
+        },
         parcel: { weight: params.weightOz },
       },
     }),
