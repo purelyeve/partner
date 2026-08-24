@@ -44,7 +44,7 @@ export default function LoginPage({
 
         <div className="mt-6 text-sm text-center space-y-2">
           <p><Link href="/forgot-password">Forgot password?</Link></p>
-          <p className="text-pe-brown">New Partner? <Link href="/register">Apply here</Link></p>
+          <p className="text-pe-brown">New Partner? <Link href="/register">Register as a Partner</Link></p>
         </div>
       </div>
     </PageShell>
