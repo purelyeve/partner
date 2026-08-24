@@ -27,7 +27,7 @@ export const PRICING = {
   introDays: 30,
 } as const
 
-export const AGREEMENT_VERSION = '2026-01-partner-agreement'
+export { AGREEMENT_VERSION_LABEL as AGREEMENT_VERSION } from '@/content/partner-agreement'
 
 export const US_STATES = [
   'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',

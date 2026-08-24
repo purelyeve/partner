@@ -73,6 +73,12 @@ export default async function AdminDistributorDetailPage({
     .eq('distributor_id', id)
     .order('created_at', { ascending: false })
 
+  const { data: acceptances } = await supabase
+    .from('agreement_acceptances')
+    .select('*')
+    .eq('distributor_id', id)
+    .order('accepted_at', { ascending: false })
+
   return (
     <div className="space-y-8">
       <div>
@@ -121,6 +127,31 @@ export default async function AdminDistributorDetailPage({
           </div>
         </Card>
       </div>
+
+      <section>
+        <h2 className="text-xl mb-4">Agreement acceptance</h2>
+        {acceptances?.length ? (
+          <div className="space-y-3">
+            {acceptances.map((a) => (
+              <Card key={a.id} className="text-sm space-y-1">
+                <p><span className="text-pe-brown">Version:</span> {a.agreement_version}</p>
+                <p><span className="text-pe-brown">Legal name:</span> {a.full_name_typed}</p>
+                <p><span className="text-pe-brown">Business:</span> {a.business_name || '—'}</p>
+                <p><span className="text-pe-brown">Email:</span> {a.email || '—'}</p>
+                <p><span className="text-pe-brown">Account ID:</span> {a.account_id || '—'}</p>
+                <p><span className="text-pe-brown">Accepted:</span> {formatDate(a.accepted_at)}</p>
+                <p><span className="text-pe-brown">IP:</span> {a.ip_address || '—'}</p>
+                <p>
+                  <span className="text-pe-brown">Checkbox:</span>{' '}
+                  {a.checkbox_accepted ? 'Affirmatively checked' : '—'}
+                </p>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-pe-brown">No electronic acceptance on file.</p>
+        )}
+      </section>
 
       <section>
         <h2 className="text-xl mb-4">Documents</h2>

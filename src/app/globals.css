@@ -34,7 +34,15 @@ input, select, textarea {
 
 input[type="radio"],
 input[type="checkbox"] {
-  @apply w-4 h-4 shrink-0 p-0;
+  width: 1rem;
+  height: 1rem;
+  max-width: 1rem;
+  min-width: 1rem;
+  flex-shrink: 0;
+  padding: 0;
+  margin: 0;
+  border-radius: 0.125rem;
+  accent-color: var(--color-pe-gold);
 }
 
 input[type="file"] {
@@ -48,7 +56,8 @@ label {
 
 label.flex,
 label.inline-flex {
-  @apply mb-0;
+  display: flex;
+  margin-bottom: 0;
 }
 
 button:disabled {

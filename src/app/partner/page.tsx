@@ -28,6 +28,15 @@ export default async function PartnerDashboardPage() {
     .order('created_at', { ascending: false })
     .limit(5)
 
+  const { data: latestResale } = await supabase
+    .from('distributor_documents')
+    .select('id, status')
+    .eq('distributor_id', distributor.id)
+    .eq('kind', 'resale_certificate')
+    .order('uploaded_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
   return (
     <div className="space-y-8">
       <div>
@@ -37,7 +46,8 @@ export default async function PartnerDashboardPage() {
 
       {step === 'pending' && (
         <Alert variant="info">
-          Your application is under review. You will receive an email once a decision has been made.
+          Your Partner registration is under review. You will receive an email once a decision has
+          been made. Resale documentation is reviewed before wholesale purchasing is activated.
         </Alert>
       )}
 
@@ -54,21 +64,25 @@ export default async function PartnerDashboardPage() {
         <Alert variant="warning">Your account is suspended. Contact Purely Eve for assistance.</Alert>
       )}
 
-      {step === 'agreement' && (
-        <Alert variant="info">
-          Your application is approved. Please review and accept the Partner Agreement to continue.
-          <div className="mt-3">
-            <Link href="/partner/agreement"><Button>Review agreement</Button></Link>
-          </div>
-        </Alert>
-      )}
-
       {step === 'resale' && (
         <Alert variant="info">
-          Upload your resale certificate for admin review before purchasing inventory.
-          <div className="mt-3">
-            <Link href="/partner/resale"><Button>Upload resale certificate</Button></Link>
-          </div>
+          {latestResale?.status === 'pending' ? (
+            <>Your resale documentation is under review. Wholesale purchasing unlocks after it is accepted.</>
+          ) : latestResale?.status === 'rejected' ? (
+            <>
+              Your resale documentation needs to be updated. Please upload a new document.
+              <div className="mt-3">
+                <Link href="/partner/resale"><Button>Upload resale documentation</Button></Link>
+              </div>
+            </>
+          ) : (
+            <>
+              Upload your resale certificate for admin review before purchasing inventory.
+              <div className="mt-3">
+                <Link href="/partner/resale"><Button>Upload resale documentation</Button></Link>
+              </div>
+            </>
+          )}
         </Alert>
       )}
 

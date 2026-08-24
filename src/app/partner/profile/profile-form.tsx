@@ -97,15 +97,19 @@ export default function ProfilePage({
         <Card className="space-y-4">
           <h2 className="text-lg">Fulfillment address</h2>
           <p className="text-sm text-pe-brown">Where you ship from and receive inventory. Used for shipping rates.</p>
-          <label className="flex items-center gap-2 text-sm text-pe-brown">
+          <div className="flex items-start gap-3">
             <input
+              id="fulfillmentSameAsMailing"
               type="checkbox"
               name="fulfillmentSameAsMailing"
               checked={sameAsMailing}
               onChange={(e) => setSameAsMailing(e.target.checked)}
+              className="mt-0.5"
             />
-            Same as mailing address
-          </label>
+            <label htmlFor="fulfillmentSameAsMailing" className="!mb-0 text-sm text-pe-brown cursor-pointer">
+              Same as mailing address
+            </label>
+          </div>
           {!sameAsMailing && (
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">

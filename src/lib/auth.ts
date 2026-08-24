@@ -68,7 +68,7 @@ export function onboardingStep(distributor: Distributor | null): string {
   if (distributor.application_status === 'declined') return 'declined'
   if (distributor.application_status === 'suspended') return 'suspended'
   if (distributor.application_status === 'removed') return 'removed'
-  if (!distributor.agreement_signed_at) return 'agreement'
+  // Agreement is accepted at registration; remaining gate is resale doc acceptance.
   if (!distributor.resale_accepted_at) return 'resale'
   return 'ready'
 }

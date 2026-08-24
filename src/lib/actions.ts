@@ -1,6 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import type { ActionState } from '@/lib/action-state'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
@@ -16,21 +17,29 @@ import { getStripe } from '@/lib/stripe'
 import { fulfillmentAddress } from '@/lib/auth'
 import type { ApplicationStatus, DocumentStatus } from '@/lib/types'
 
+const RESALE_MIME = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'])
+const RESALE_EXT = /\.(pdf|jpe?g|png)$/i
+
 const registerSchema = z.object({
   email: z.email(),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   fullName: z.string().min(2),
   phone: z.string().min(7),
-  businessName: z.string().min(2),
-  businessStructure: z.enum(['sole_proprietor', 'llc', 'corporation', 'other']),
+  businessName: z.string().optional(),
+  businessStructure: z.enum(['sole_proprietor', 'llc', 'corporation', 'other']).optional(),
   businessStructureOther: z.string().optional(),
-  mailingLine1: z.string().min(3),
-  mailingLine2: z.string().optional(),
-  mailingCity: z.string().min(2),
-  mailingState: z.string().length(2),
-  mailingPostalCode: z.string().min(5),
-  taxId: z.string().min(4, 'Tax ID or SSN is required'),
+  taxId: z.string().optional(),
+  certificateNumber: z.string().min(2, 'Sales tax license / seller\'s permit number is required'),
+  agreeToTerms: z.literal('yes', { error: 'You must agree to the Partner Terms & Wholesale Agreement' }),
 })
+
+async function requestMeta() {
+  const h = await headers()
+  const forwarded = h.get('x-forwarded-for')
+  const ip = forwarded?.split(',')[0]?.trim() || h.get('x-real-ip') || ''
+  const userAgent = h.get('user-agent') || ''
+  return { ip, userAgent }
+}
 
 export async function registerAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = registerSchema.safeParse({
@@ -38,15 +47,12 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
     password: formData.get('password'),
     fullName: formData.get('fullName'),
     phone: formData.get('phone'),
-    businessName: formData.get('businessName'),
-    businessStructure: formData.get('businessStructure'),
+    businessName: String(formData.get('businessName') ?? '').trim() || undefined,
+    businessStructure: String(formData.get('businessStructure') ?? '').trim() || undefined,
     businessStructureOther: formData.get('businessStructureOther') || '',
-    mailingLine1: formData.get('mailingLine1'),
-    mailingLine2: formData.get('mailingLine2') || '',
-    mailingCity: formData.get('mailingCity'),
-    mailingState: formData.get('mailingState'),
-    mailingPostalCode: formData.get('mailingPostalCode'),
-    taxId: formData.get('taxId'),
+    taxId: String(formData.get('taxId') ?? '').trim() || undefined,
+    certificateNumber: formData.get('certificateNumber'),
+    agreeToTerms: formData.get('agreeToTerms'),
   })
 
   if (!parsed.success) {
@@ -54,17 +60,33 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
   }
 
   const data = parsed.data
+  const resaleFile = formData.get('resaleFile') as File | null
+  if (!resaleFile || resaleFile.size === 0) {
+    return { error: 'Please upload your resale documentation.' }
+  }
+  if (resaleFile.size > 10 * 1024 * 1024) {
+    return { error: 'Resale document must be 10 MB or smaller.' }
+  }
+  const mimeOk = !resaleFile.type || RESALE_MIME.has(resaleFile.type) || resaleFile.type === 'image/jpg'
+  const nameOk = RESALE_EXT.test(resaleFile.name)
+  if (!mimeOk && !nameOk) {
+    return { error: 'Resale document must be a PDF, JPG, JPEG, or PNG.' }
+  }
 
-  let taxCiphertext: string
-  let last4: string
-  try {
-    taxCiphertext = encryptTaxId(data.taxId)
-    last4 = taxIdLast4(data.taxId)
-  } catch {
-    return { error: 'Server encryption is not configured. Contact support.' }
+  let taxCiphertext: string | null = null
+  let last4: string | null = null
+  if (data.taxId) {
+    try {
+      taxCiphertext = encryptTaxId(data.taxId)
+      last4 = taxIdLast4(data.taxId)
+    } catch {
+      return { error: 'Server encryption is not configured. Contact support.' }
+    }
   }
 
   const supabase = await createClient()
+  const { ip, userAgent } = await requestMeta()
+  const acceptedAt = new Date().toISOString()
 
   const { data: authData, error: authError } = await supabase.auth.signUp({
     email: data.email,
@@ -79,32 +101,89 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
   if (!authData.user) return { error: 'Registration failed' }
 
   // Email confirmation is required, so signUp does not return a session.
-  // Use the service-role client for the distributor insert (trusted server-side step).
+  // Use the service-role client for trusted server-side inserts and storage.
   const admin = createAdminClient()
-  const { error: distError } = await admin.from('distributors').insert({
-    profile_id: authData.user.id,
-    business_name: data.businessName,
-    business_structure: data.businessStructure,
-    business_structure_other: data.businessStructureOther ?? '',
-    mailing_line1: data.mailingLine1,
-    mailing_line2: data.mailingLine2 ?? '',
-    mailing_city: data.mailingCity,
-    mailing_state: data.mailingState,
-    mailing_postal_code: data.mailingPostalCode,
-    tax_id_ciphertext: taxCiphertext,
-    tax_id_last4: last4,
-    application_status: 'pending',
-    application_submitted_at: new Date().toISOString(),
+  const { data: distributor, error: distError } = await admin
+    .from('distributors')
+    .insert({
+      profile_id: authData.user.id,
+      business_name: data.businessName ?? '',
+      business_structure: data.businessStructure ?? 'sole_proprietor',
+      business_structure_other: data.businessStructureOther ?? '',
+      tax_id_ciphertext: taxCiphertext,
+      tax_id_last4: last4,
+      resale_certificate_number: data.certificateNumber,
+      application_status: 'pending',
+      application_submitted_at: acceptedAt,
+      agreement_signed_at: acceptedAt,
+    })
+    .select('id')
+    .single()
+
+  if (distError || !distributor) {
+    await admin.auth.admin.deleteUser(authData.user.id)
+    return { error: distError?.message ?? 'Could not create partner profile' }
+  }
+
+  const storagePath = `${authData.user.id}/resale/${Date.now()}-${resaleFile.name.replace(/[^\w.\-]+/g, '_')}`
+  const fileBuffer = Buffer.from(await resaleFile.arrayBuffer())
+  const { error: uploadError } = await admin.storage
+    .from('distributor-documents')
+    .upload(storagePath, fileBuffer, {
+      contentType: resaleFile.type || 'application/octet-stream',
+      upsert: false,
+    })
+
+  if (uploadError) {
+    await admin.from('distributors').delete().eq('id', distributor.id)
+    await admin.auth.admin.deleteUser(authData.user.id)
+    return { error: uploadError.message }
+  }
+
+  const { error: docError } = await admin.from('distributor_documents').insert({
+    distributor_id: distributor.id,
+    kind: 'resale_certificate',
+    storage_path: storagePath,
+    file_name: resaleFile.name,
+    mime_type: resaleFile.type,
+    size_bytes: resaleFile.size,
+    status: 'pending',
   })
 
-  if (distError) {
+  if (docError) {
+    await admin.storage.from('distributor-documents').remove([storagePath])
+    await admin.from('distributors').delete().eq('id', distributor.id)
     await admin.auth.admin.deleteUser(authData.user.id)
-    return { error: distError.message }
+    return { error: docError.message }
+  }
+
+  const { error: acceptError } = await admin.from('agreement_acceptances').insert({
+    distributor_id: distributor.id,
+    agreement_version: AGREEMENT_VERSION,
+    full_name_typed: data.fullName,
+    business_name: data.businessName ?? '',
+    email: data.email,
+    account_id: authData.user.id,
+    checkbox_accepted: true,
+    accepted_at: acceptedAt,
+    ip_address: ip,
+    user_agent: userAgent,
+  })
+
+  if (acceptError) {
+    await admin.storage.from('distributor-documents').remove([storagePath])
+    await admin.from('distributors').delete().eq('id', distributor.id)
+    await admin.auth.admin.deleteUser(authData.user.id)
+    return { error: acceptError.message }
   }
 
   await maybePromoteAdmin(authData.user.id, data.email)
 
-  return { success: true, message: 'Check your email to verify your account, then sign in.' }
+  return {
+    success: true,
+    message:
+      'Check your email to verify your account, then sign in. Purely Eve will review your registration and resale documentation before wholesale purchasing is activated.',
+  }
 }
 
 export async function loginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -151,37 +230,29 @@ export async function resetPasswordAction(_prev: ActionState, formData: FormData
   redirect('/login?reset=1')
 }
 
-export async function acceptAgreementAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const fullName = String(formData.get('fullName') ?? '').trim()
-  if (fullName.length < 2) return { error: 'Type your full legal name to accept.' }
-
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not signed in' }
-
-  const { data: distributor } = await supabase
-    .from('distributors')
-    .select('id, application_status')
-    .eq('profile_id', user.id)
-    .single()
-
-  if (!distributor || distributor.application_status !== 'approved') {
-    return { error: 'Your application must be approved before signing the agreement.' }
+/** Dev-only: smoke-test Resend from the home page. */
+export async function sendTestEmailAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  if (process.env.NODE_ENV === 'production') {
+    return { error: 'Test email is not available in production.' }
+  }
+  if (!process.env.RESEND_API_KEY) {
+    return { error: 'RESEND_API_KEY is not set in .env.local' }
   }
 
-  await supabase.from('agreement_acceptances').insert({
-    distributor_id: distributor.id,
-    agreement_version: AGREEMENT_VERSION,
-    full_name_typed: fullName,
+  const email = String(formData.get('email') ?? '').trim()
+  if (!email || !email.includes('@')) return { error: 'Enter a valid email address.' }
+
+  const result = await sendEmail({
+    to: email,
+    subject: 'Purely Eve — Resend test',
+    html: emailShell(
+      'Resend test',
+      `<p>This is a test email from the Purely Eve Partner Portal.</p><p>If you received this, Resend is configured correctly.</p><p>From: ${process.env.EMAIL_FROM ?? '(default)'}</p>`,
+    ),
   })
 
-  await supabase
-    .from('distributors')
-    .update({ agreement_signed_at: new Date().toISOString() })
-    .eq('id', distributor.id)
-
-  revalidatePath('/partner')
-  redirect('/partner/resale')
+  if (!result.ok) return { error: result.error ?? 'Failed to send test email.' }
+  return { success: true, message: `Test email sent to ${email}. Check inbox and Resend → Emails.` }
 }
 
 export async function uploadResaleDocumentAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -191,7 +262,6 @@ export async function uploadResaleDocumentAction(_prev: ActionState, formData: F
 
   if (!file || file.size === 0) return { error: 'Please upload your resale certificate.' }
   if (!certificateNumber) return { error: 'Certificate number is required.' }
-  if (!resaleState) return { error: 'Issuing state is required.' }
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -203,8 +273,9 @@ export async function uploadResaleDocumentAction(_prev: ActionState, formData: F
     .eq('profile_id', user.id)
     .single()
 
-  if (!distributor?.agreement_signed_at) {
-    return { error: 'Sign the Partner Agreement first.' }
+  if (!distributor) return { error: 'Partner profile not found.' }
+  if (distributor.application_status === 'declined' || distributor.application_status === 'removed') {
+    return { error: 'This account cannot upload documents.' }
   }
 
   const path = `${user.id}/resale/${Date.now()}-${file.name}`
@@ -326,7 +397,7 @@ export async function adminDecideApplicationAction(_prev: ActionState, formData:
 
   const body =
     decision === 'approved'
-      ? `<p>Dear ${profile.full_name},</p><p>Your Partner application has been approved. Sign in to complete onboarding: accept the Partner Agreement and upload your resale certificate.</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL}/login">Sign in to the Partner Portal</a></p>`
+      ? `<p>Dear ${profile.full_name},</p><p>Your Partner registration has been approved. Once your resale documentation is accepted, you can purchase wholesale inventory packages from your Partner Portal.</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL}/login">Sign in to the Partner Portal</a></p>`
       : `<p>Dear ${profile.full_name},</p><p>Your application status is now: <strong>${decision}</strong>.</p>${note ? `<p>Note: ${note}</p>` : ''}`
 
   await sendEmail({ to: profile.email, subject, html: emailShell(subject, body) })

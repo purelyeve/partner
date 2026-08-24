@@ -37,7 +37,7 @@ export function PackageCheckout({
   if (!canPurchase) {
     return (
       <Alert variant="warning">
-        Complete onboarding (approved application, signed agreement, accepted resale certificate) before purchasing inventory.
+        Complete onboarding (approved registration and accepted resale documentation) before purchasing inventory.
       </Alert>
     )
   }
