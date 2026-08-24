@@ -19,12 +19,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Logo dark />
           <nav className="flex flex-wrap items-center gap-4 text-sm">
             {NAV.map((item) => (
-              <Link key={item.href} href={item.href} className="text-pe-cream hover:text-pe-gold">
+              <Link key={item.href} href={item.href} className="nav-link nav-link-dark">
                 {item.label}
               </Link>
             ))}
             <form action={logoutAction}>
-              <button type="submit" className="text-pe-beige hover:text-pe-gold">Sign out</button>
+              <button type="submit" className="nav-link nav-link-dark text-pe-beige">
+                Sign out
+              </button>
             </form>
           </nav>
         </div>

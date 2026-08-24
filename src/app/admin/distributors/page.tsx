@@ -49,15 +49,19 @@ export default async function AdminDistributorsPage() {
             <tbody>
               {distributors.map((d) => {
                 const p = asProfile(d.profiles)
+                const label = d.business_name?.trim() || 'Personal'
                 return (
                   <tr key={d.id} className="border-t border-pe-beige">
                     <td className="p-3">
                       <Link href={`/admin/distributors/${d.id}`} className="hover:underline font-medium">
-                        {d.business_name}
+                        {label}
                       </Link>
                     </td>
                     <td className="p-3">
-                      {p.full_name}<br />
+                      <Link href={`/admin/distributors/${d.id}`} className="hover:underline">
+                        {p.full_name}
+                      </Link>
+                      <br />
                       <span className="text-pe-brown">{p.email}</span>
                     </td>
                     <td className="p-3">
@@ -65,7 +69,13 @@ export default async function AdminDistributorsPage() {
                         {applicationStatusLabel(d.application_status)}
                       </Badge>
                     </td>
-                    <td className="p-3">{d.resale_accepted_at ? 'Accepted' : '—'}</td>
+                    <td className="p-3">
+                      {d.resale_accepted_at
+                        ? 'Accepted'
+                        : d.application_status === 'pending'
+                          ? 'Pending review'
+                          : 'Awaiting acceptance'}
+                    </td>
                     <td className="p-3">{formatDate(d.application_submitted_at)}</td>
                   </tr>
                 )

@@ -4,7 +4,7 @@ import { BRAND } from '@/lib/constants'
 
 export function Logo({ dark = false }: { dark?: boolean }) {
   return (
-    <Link href="/" className="flex items-center gap-3">
+    <Link href="/" className="flex items-center gap-3 cursor-pointer">
       <Image
         src={dark ? '/brand/logo-gold-on-black.jpg' : '/brand/logo-black-on-white.png'}
         alt={BRAND.name}

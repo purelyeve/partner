@@ -83,7 +83,7 @@ export default async function AdminDistributorDetailPage({
     <div className="space-y-8">
       <div>
         <Link href="/admin/distributors" className="text-sm">← All distributors</Link>
-        <h1 className="text-3xl mt-2">{distributor.business_name}</h1>
+        <h1 className="text-3xl mt-2">{distributor.business_name?.trim() || 'Personal'}</h1>
         <p className="text-pe-brown">{profile.full_name} · {profile.email}</p>
       </div>
 

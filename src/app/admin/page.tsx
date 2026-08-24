@@ -71,11 +71,12 @@ export default async function AdminDashboardPage() {
               <tbody>
                 {recentDistributors.map((d) => {
                   const p = asProfile(d.profiles)
+                  const label = d.business_name?.trim() || 'Personal'
                   return (
                     <tr key={d.id} className="border-t border-pe-beige">
                       <td className="p-3">
                         <a href={`/admin/distributors/${d.id}`} className="hover:underline">
-                          {d.business_name}
+                          {label}
                         </a>
                       </td>
                       <td className="p-3">{p.full_name}<br /><span className="text-pe-brown">{p.email}</span></td>

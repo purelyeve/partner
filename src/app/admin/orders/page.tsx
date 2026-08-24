@@ -83,10 +83,10 @@ export default async function AdminOrdersPage({
           <input type="date" name="to" defaultValue={to} />
         </label>
         <div className="flex items-end gap-2">
-          <button type="submit" className="h-10 px-4 bg-pe-dark-brown text-pe-cream rounded-sm">
+          <button type="submit" className="h-10 px-4 bg-pe-dark-brown text-pe-cream rounded-sm cursor-pointer hover:bg-pe-brown transition-colors">
             Filter
           </button>
-          <a href="/admin/orders" className="h-10 px-3 inline-flex items-center text-pe-brown">
+          <a href="/admin/orders" className="h-10 px-3 inline-flex items-center text-pe-brown cursor-pointer hover:text-pe-gold hover:underline underline-offset-4">
             Reset
           </a>
         </div>

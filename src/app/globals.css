@@ -24,7 +24,22 @@ h1, h2, h3 {
 }
 
 a {
-  @apply text-pe-gold hover:text-pe-brown transition-colors;
+  @apply text-pe-gold hover:text-pe-brown transition-colors cursor-pointer;
+}
+
+button,
+[role="button"],
+input[type="submit"],
+input[type="button"],
+summary {
+  cursor: pointer;
+}
+
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  @apply opacity-50 cursor-not-allowed;
 }
 
 input, select, textarea {
@@ -43,10 +58,12 @@ input[type="checkbox"] {
   margin: 0;
   border-radius: 0.125rem;
   accent-color: var(--color-pe-gold);
+  cursor: pointer;
 }
 
 input[type="file"] {
-  @apply p-0 border-0 bg-transparent file:mr-3 file:px-3 file:py-2 file:border file:file:border-pe-beige
+  @apply p-0 border-0 bg-transparent cursor-pointer
+         file:mr-3 file:px-3 file:py-2 file:border file:border-pe-beige
          file:rounded-sm file:bg-pe-cream file:text-pe-charcoal file:cursor-pointer;
 }
 
@@ -60,6 +77,15 @@ label.inline-flex {
   margin-bottom: 0;
 }
 
-button:disabled {
-  @apply opacity-50 cursor-not-allowed;
+/* Topbar / text nav links */
+.nav-link {
+  @apply cursor-pointer transition-colors underline-offset-4 hover:underline;
+}
+
+.nav-link-dark {
+  @apply text-pe-cream hover:text-pe-gold;
+}
+
+.nav-link-light {
+  @apply text-pe-charcoal hover:text-pe-brown;
 }

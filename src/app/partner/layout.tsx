@@ -22,12 +22,14 @@ export default async function PartnerLayout({ children }: { children: React.Reac
           <Logo />
           <nav className="flex flex-wrap items-center gap-4 text-sm">
             {NAV.map((item) => (
-              <Link key={item.href} href={item.href} className="hover:text-pe-brown">
+              <Link key={item.href} href={item.href} className="nav-link nav-link-light">
                 {item.label}
               </Link>
             ))}
             <form action={logoutAction}>
-              <button type="submit" className="text-pe-brown hover:text-pe-gold">Sign out</button>
+              <button type="submit" className="nav-link text-pe-brown hover:text-pe-gold">
+                Sign out
+              </button>
             </form>
           </nav>
         </div>
