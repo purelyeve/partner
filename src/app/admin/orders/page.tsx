@@ -1,7 +1,7 @@
 import { getAdminDb } from '@/lib/admin'
 import { requireAdmin } from '@/lib/auth'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { BuyLabelForm, LabelLinks } from './fulfill-form'
+import { BuyLabelForm, LabelLinks, MarkFulfilledForm } from './fulfill-form'
 import { DISTRIBUTOR_PROFILE } from '@/lib/constants'
 import type { Profile } from '@/lib/types'
 
@@ -155,8 +155,23 @@ export default async function AdminOrdersPage({
                     <td className="p-3">{formatCurrency(o.total_cents)}</td>
                     <td className="p-3">{formatDate(o.paid_at)}</td>
                     <td className="p-3">
-                      {o.status === 'paid' && <BuyLabelForm orderId={o.id} />}
-                      {(o.status === 'fulfilled' || o.tracking_code || o.label_url || labelUrls.length > 0) && (
+                      {o.status === 'paid' && (
+                        <div className="space-y-1">
+                          {!(o.label_url || labelUrls.length > 0) && (
+                            <BuyLabelForm orderId={o.id} />
+                          )}
+                          <LabelLinks
+                            labelUrl={o.label_url}
+                            labelUrls={labelUrls}
+                            tracking={o.tracking_code}
+                          />
+                          <MarkFulfilledForm
+                            orderId={o.id}
+                            defaultTracking={o.tracking_code || ''}
+                          />
+                        </div>
+                      )}
+                      {o.status === 'fulfilled' && (
                         <LabelLinks
                           labelUrl={o.label_url}
                           labelUrls={labelUrls}

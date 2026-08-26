@@ -822,8 +822,6 @@ export async function adminBuyLabelAndFulfillAction(
   await admin
     .from('package_orders')
     .update({
-      status: 'fulfilled',
-      fulfilled_at: new Date().toISOString(),
       tracking_code: tracking,
       label_url: primaryLabelUrl,
       label_urls: labelUrls,
@@ -850,22 +848,9 @@ export async function adminBuyLabelAndFulfillAction(
     },
   })
 
-  const profiles = (order.distributors as { profiles: { email: string; full_name: string } }).profiles
-  await sendEmail({
-    to: profiles.email,
-    subject: `Your inventory order ${order.order_number} has shipped`,
-    html: emailShell(
-      'Order shipped',
-      `<p>Dear ${profiles.full_name},</p>
-       <p>Your inventory package order <strong>${order.order_number}</strong> has shipped.</p>
-       ${tracking ? `<p>Tracking: <strong>${tracking}</strong></p>` : ''}
-       <p><a href="${appUrl()}/login">Sign in to the Partner Portal</a> to view your order.</p>`,
-    ),
-  })
-
   revalidatePath('/admin/orders')
   revalidatePath('/admin')
-  return { success: true, message: 'Label purchased and order marked fulfilled.' }
+  return { success: true, message: 'Label purchased. Print it, then mark the order fulfilled.' }
 }
 
 /** Signed URL so admin can reprint a stored or EasyPost label PDF. */
@@ -898,9 +883,8 @@ export async function getPackageLabelSignedUrlAction(orderId: string): Promise<{
 }
 
 export async function adminFulfillOrderAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  // Kept for rare manual override; prefer adminBuyLabelAndFulfillAction.
   const orderId = String(formData.get('orderId') ?? '')
-  const tracking = String(formData.get('tracking') ?? '')
+  const trackingInput = String(formData.get('tracking') ?? '').trim()
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -915,6 +899,8 @@ export async function adminFulfillOrderAction(_prev: ActionState, formData: Form
 
   if (!order || order.status !== 'paid') return { error: 'Order not eligible for fulfillment' }
 
+  const tracking = trackingInput || order.tracking_code || ''
+
   await admin
     .from('package_orders')
     .update({
@@ -924,16 +910,28 @@ export async function adminFulfillOrderAction(_prev: ActionState, formData: Form
     })
     .eq('id', orderId)
 
+  await logAudit({
+    actorId: user.id,
+    action: 'package_order_fulfilled',
+    entityType: 'package_order',
+    entityId: orderId,
+    detail: { tracking },
+  })
+
   const profiles = (order.distributors as { profiles: { email: string; full_name: string } }).profiles
   await sendEmail({
     to: profiles.email,
     subject: `Your inventory order ${order.order_number} has shipped`,
     html: emailShell(
       'Order shipped',
-      `<p>Dear ${profiles.full_name},</p><p>Your inventory package order <strong>${order.order_number}</strong> has shipped.${tracking ? ` Tracking: ${tracking}` : ''}</p>`,
+      `<p>Dear ${profiles.full_name},</p>
+       <p>Your inventory package order <strong>${order.order_number}</strong> has shipped.</p>
+       ${tracking ? `<p>Tracking: <strong>${tracking}</strong></p>` : ''}
+       <p><a href="${appUrl()}/login">Sign in to the Partner Portal</a> to view your order.</p>`,
     ),
   })
 
   revalidatePath('/admin/orders')
-  return { success: true }
+  revalidatePath('/admin')
+  return { success: true, message: 'Order marked fulfilled.' }
 }
