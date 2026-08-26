@@ -429,29 +429,15 @@ export async function adminDecideApplicationAction(_prev: ActionState, formData:
   const profile = dist.profiles as { email: string; full_name: string }
 
   if (decision === 'approved') {
-    // Full “order your package” email only when resale is already accepted.
-    // Otherwise send a short notice; the full email sends when resale is accepted.
-    if (dist.resale_accepted_at) {
-      await sendEmail({
-        to: profile.email,
-        subject: 'Congratulations — your Purely Eve Partner registration is approved',
-        html: partnerApprovalReadyEmailHtml({
-          fullName: profile.full_name,
-          portalLoginUrl: `${appUrl()}/login`,
-        }),
-      })
-    } else {
-      await sendEmail({
-        to: profile.email,
-        subject: 'Your Purely Eve Partner registration has been approved',
-        html: emailShell(
-          'Registration approved',
-          `<p>Hi ${profile.full_name},</p>
-           <p>Your Partner registration has been approved. Once your resale documentation is accepted, you will receive an email with next steps to place your opening inventory order.</p>
-           <p><a href="${appUrl()}/login">Sign in to the Partner Portal</a></p>`,
-        ),
-      })
-    }
+    // Client verbiage: send the full “approved to order” email when admin Approves.
+    await sendEmail({
+      to: profile.email,
+      subject: 'Congratulations — your Purely Eve Partner registration is approved',
+      html: partnerApprovalReadyEmailHtml({
+        fullName: profile.full_name,
+        portalLoginUrl: `${appUrl()}/login`,
+      }),
+    })
   } else {
     const subject =
       decision === 'declined'
@@ -528,14 +514,18 @@ export async function adminReviewDocumentAction(_prev: ActionState, formData: Fo
       .eq('id', doc.distributor_id)
       .single()
 
+    // Full approval letter is sent on Approve. On resale accept, only nudge if they can order now.
     if (fresh?.application_status === 'approved' && fresh.resale_accepted_at) {
       await sendEmail({
         to: profiles.email,
-        subject: 'Congratulations — your Purely Eve Partner registration is approved',
-        html: partnerApprovalReadyEmailHtml({
-          fullName: profiles.full_name,
-          portalLoginUrl: `${appUrl()}/login`,
-        }),
+        subject: 'Your resale documentation is accepted — you can order inventory',
+        html: emailShell(
+          'Ready to order inventory',
+          `<p>Dear ${profiles.full_name},</p>
+           <p>Your resale documentation has been accepted. You can now place your opening inventory package order in the Partner Portal.</p>
+           <p style="margin:24px 0;"><a href="${appUrl()}/partner/packages" style="background:#3a2108;color:#f5f0e8;padding:12px 20px;text-decoration:none;display:inline-block;">Order inventory packages</a></p>
+           ${note ? `<p>Note: ${note}</p>` : ''}`,
+        ),
       })
     } else {
       await sendEmail({

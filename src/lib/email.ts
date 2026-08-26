@@ -64,7 +64,7 @@ export function emailShell(title: string, body: string): string {
 <body style="margin:0;padding:0;background:#f5f0e8;">
   <div style="font-family:${font};font-size:12pt;line-height:1.5;color:#1d201f;background:#f5f0e8;padding:32px;">
   <div style="max-width:560px;margin:0 auto;background:#fff;padding:32px;border:1px solid #e8dcc8;">
-    <img src="${logoUrl}" alt="Purely Eve" width="200" style="display:block;margin:0 0 24px;height:auto;max-width:200px;" />
+    <img src="${logoUrl}" alt="Purely Eve" width="200" style="display:block;margin:0 0 24px;border:0;outline:none;text-decoration:none;width:200px;max-width:100%;height:auto;" />
     <p style="font-family:${font};color:#aa7800;letter-spacing:0.15em;font-size:10pt;text-transform:uppercase;margin:0 0 8px;">Purely Eve</p>
     <h1 style="font-family:${font};font-size:18pt;font-weight:bold;color:#3a2108;margin:0 0 24px;">${title}</h1>
     <div style="font-family:${font};font-size:12pt;line-height:1.5;">${body}</div>
