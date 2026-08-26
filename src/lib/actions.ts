@@ -1058,7 +1058,8 @@ export async function adminDeleteDistributorAction(
 
   if (!dist) return { error: 'Distributor not found' }
 
-  const profile = dist.profiles as { email: string; full_name: string; role: string }
+  const profile = dist.profiles as unknown as { email: string; full_name: string; role: string }
+  if (!profile?.email) return { error: 'Partner profile not found' }
   if (profile.role === 'admin') {
     return { error: 'Cannot delete an admin account from here.' }
   }
