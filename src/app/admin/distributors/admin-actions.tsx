@@ -2,9 +2,41 @@
 
 import { useActionState } from 'react'
 import { Badge, Button, Label } from '@/components/ui'
-import { adminDecideApplicationAction, adminReviewDocumentAction } from '@/lib/actions'
+import {
+  adminDecideApplicationAction,
+  adminDeleteDistributorAction,
+  adminReviewDocumentAction,
+} from '@/lib/actions'
 import { documentStatusLabel, formatDate } from '@/lib/utils'
 import type { DistributorDocument } from '@/lib/types'
+
+export function AdminDeleteDistributorForm({
+  distributorId,
+  label,
+}: {
+  distributorId: string
+  label: string
+}) {
+  const [state, action, pending] = useActionState(adminDeleteDistributorAction, null)
+
+  return (
+    <form action={action} className="space-y-3 border border-red-200 bg-red-50/50 rounded-sm p-4">
+      <input type="hidden" name="distributorId" value={distributorId} />
+      <p className="text-sm text-pe-charcoal">
+        Permanently delete <strong>{label}</strong> and their documents, inventory, and package
+        orders. This cannot be undone.
+      </p>
+      <Label htmlFor="confirm-delete" required>
+        Type DELETE to confirm
+      </Label>
+      <input id="confirm-delete" name="confirm" placeholder="DELETE" autoComplete="off" required />
+      <Button type="submit" variant="danger" disabled={pending}>
+        {pending ? 'Deleting…' : 'Delete partner / applicant'}
+      </Button>
+      {state?.error && <p className="text-xs text-red-600">{state.error}</p>}
+    </form>
+  )
+}
 
 export function AdminApplicationActions({ distributorId, showModeration }: { distributorId: string; showModeration?: boolean }) {
   const [, approveAction, approvePending] = useActionState(adminDecideApplicationAction, null)

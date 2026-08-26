@@ -925,3 +925,174 @@ export async function adminFulfillOrderAction(_prev: ActionState, formData: Form
   revalidatePath('/admin')
   return { success: true, message: 'Order marked fulfilled.' }
 }
+
+/** Admin: create a Paid (unfulfilled) Starter package order for label-flow testing. */
+export async function adminCreateTestPaidOrderAction(
+  _prev: ActionState,
+  _formData: FormData,
+): Promise<ActionState> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not signed in' }
+
+  const admin = createAdminClient()
+  const { data: profile } = await admin.from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role !== 'admin') return { error: 'Not authorized' }
+
+  let { data: dist } = await admin
+    .from('distributors')
+    .select('*')
+    .eq('application_status', 'approved')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!dist) {
+    const fallback = await admin
+      .from('distributors')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    dist = fallback.data
+  }
+
+  if (!dist) return { error: 'No partners found. Register a partner first.' }
+
+  const { data: pkg } = await admin
+    .from('inventory_packages')
+    .select('*')
+    .eq('sku', 'PE-PKG-START')
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (!pkg) return { error: 'Starter package not found.' }
+
+  const addr = fulfillmentAddress(dist)
+  if (!hasCompleteShipToAddress(dist)) {
+    return { error: 'Selected partner needs a complete ship-to address in their profile.' }
+  }
+
+  const shippingCents = 1500
+  const orderNumber = generateOrderNumber()
+  const { data: order, error } = await admin
+    .from('package_orders')
+    .insert({
+      order_number: orderNumber,
+      distributor_id: dist.id,
+      package_id: pkg.id,
+      sku_snapshot: pkg.sku,
+      name_snapshot: pkg.name,
+      unit_count_snapshot: pkg.unit_count,
+      unit_price_cents: pkg.price_cents,
+      quantity: 1,
+      subtotal_cents: pkg.price_cents,
+      shipping_cents: shippingCents,
+      tax_cents: 0,
+      total_cents: pkg.price_cents + shippingCents,
+      ship_to_name: addr.name,
+      ship_to_line1: addr.line1,
+      ship_to_line2: addr.line2,
+      ship_to_city: addr.city,
+      ship_to_state: addr.state,
+      ship_to_postal_code: addr.postal_code,
+      ship_to_country: addr.country,
+      shipping_carrier: 'USPS',
+      shipping_service: 'Ground Advantage',
+      status: 'paid',
+      paid_at: new Date().toISOString(),
+      tracking_code: '',
+      label_url: '',
+      label_urls: [],
+    })
+    .select('order_number')
+    .single()
+
+  if (error || !order) return { error: error?.message ?? 'Could not create test order' }
+
+  await logAudit({
+    actorId: user.id,
+    action: 'package_order_test_created',
+    entityType: 'package_order',
+    entityId: dist.id,
+    detail: { order_number: order.order_number },
+  })
+
+  revalidatePath('/admin/orders')
+  revalidatePath('/admin')
+  return {
+    success: true,
+    message: `Test Paid order ${order.order_number} created. Filter Status: Paid to buy a label and mark fulfilled.`,
+  }
+}
+
+/** Permanently delete a partner/applicant account and related data. */
+export async function adminDeleteDistributorAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const distributorId = String(formData.get('distributorId') ?? '')
+  const confirm = String(formData.get('confirm') ?? '')
+  if (!distributorId) return { error: 'Missing distributor' }
+  if (confirm !== 'DELETE') {
+    return { error: 'Type DELETE to confirm permanent removal.' }
+  }
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not signed in' }
+
+  const admin = createAdminClient()
+  const { data: actor } = await admin.from('profiles').select('role').eq('id', user.id).single()
+  if (actor?.role !== 'admin') return { error: 'Not authorized' }
+
+  const { data: dist } = await admin
+    .from('distributors')
+    .select(`id, profile_id, ${DISTRIBUTOR_PROFILE}(email, full_name, role)`)
+    .eq('id', distributorId)
+    .single()
+
+  if (!dist) return { error: 'Distributor not found' }
+
+  const profile = dist.profiles as { email: string; full_name: string; role: string }
+  if (profile.role === 'admin') {
+    return { error: 'Cannot delete an admin account from here.' }
+  }
+
+  const { data: docs } = await admin
+    .from('distributor_documents')
+    .select('storage_path')
+    .eq('distributor_id', distributorId)
+
+  const paths = (docs ?? []).map((d) => d.storage_path).filter(Boolean)
+  if (paths.length) {
+    await admin.storage.from('distributor-documents').remove(paths)
+  }
+
+  // package_orders reference distributors with ON DELETE RESTRICT
+  await admin.from('package_orders').delete().eq('distributor_id', distributorId)
+
+  const { error: delAuthError } = await admin.auth.admin.deleteUser(dist.profile_id)
+  if (delAuthError) {
+    // Fallback if auth delete fails: remove distributor row after orders cleared
+    await admin.from('distributors').delete().eq('id', distributorId)
+    await admin.from('profiles').delete().eq('id', dist.profile_id)
+  }
+
+  await logAudit({
+    actorId: user.id,
+    action: 'distributor_deleted',
+    entityType: 'distributor',
+    entityId: distributorId,
+    detail: { email: profile.email, full_name: profile.full_name },
+  })
+
+  revalidatePath('/admin/distributors')
+  revalidatePath('/admin')
+  revalidatePath('/admin/orders')
+  redirect('/admin/distributors')
+}

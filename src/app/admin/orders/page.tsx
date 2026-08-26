@@ -2,6 +2,7 @@ import { getAdminDb } from '@/lib/admin'
 import { requireAdmin } from '@/lib/auth'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { BuyLabelForm, LabelLinks, MarkFulfilledForm } from './fulfill-form'
+import { CreateTestPaidOrderButton } from './create-test-order'
 import { DISTRIBUTOR_PROFILE } from '@/lib/constants'
 import type { Profile } from '@/lib/types'
 
@@ -57,7 +58,10 @@ export default async function AdminOrdersPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl">Inventory orders</h1>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <h1 className="text-3xl">Inventory orders</h1>
+        <CreateTestPaidOrderButton />
+      </div>
 
       <form className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3 text-sm" method="get">
         <label className="block">

@@ -1,7 +1,11 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Badge, Card } from '@/components/ui'
-import { AdminApplicationActions, AdminDocumentCard } from '../admin-actions'
+import {
+  AdminApplicationActions,
+  AdminDeleteDistributorForm,
+  AdminDocumentCard,
+} from '../admin-actions'
 import { getAdminDb } from '@/lib/admin'
 import { requireAdmin } from '@/lib/auth'
 import {
@@ -208,6 +212,14 @@ export default async function AdminDistributorDetailPage({
         ) : (
           <p className="text-sm text-pe-brown">No orders.</p>
         )}
+      </section>
+
+      <section className="pt-4">
+        <h2 className="text-xl mb-4">Danger zone</h2>
+        <AdminDeleteDistributorForm
+          distributorId={distributor.id}
+          label={distributor.business_name?.trim() || profile.full_name || profile.email}
+        />
       </section>
     </div>
   )
