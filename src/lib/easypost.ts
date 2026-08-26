@@ -14,6 +14,49 @@ interface EasyPostAddress {
   country?: string
 }
 
+export interface ParcelSpec {
+  weightOz: number
+  lengthIn: number
+  widthIn: number
+  heightIn: number
+  /** Growth package ships as two identical boxes; rates are doubled. */
+  boxCount: number
+}
+
+/** Allowed carrier/service pairs for company → Partner inventory shipping. */
+const ALLOWED_SHIPPING: Array<{ carrier: RegExp; service: RegExp }> = [
+  { carrier: /^usps$/i, service: /ground\s*advantage|^ground$/i },
+  { carrier: /^usps$/i, service: /priority(?!\s*mail\s*express)/i },
+  { carrier: /^ups$/i, service: /^ground$|ups\s*ground/i },
+  // Client "UPS Priority" maps to mid-speed UPS (not Next Day / Express)
+  { carrier: /^ups$/i, service: /priority|3.?day|saver/i },
+]
+
+const BLOCKED_EXPRESS =
+  /overnight|express|next.?day|1.?day|second.?day\s*air|2nd\s*day\s*air|surepost|mail\s*innovations|first.?class/i
+
+export function isAllowedShippingRate(carrier: string, service: string): boolean {
+  if (BLOCKED_EXPRESS.test(service) || /express/i.test(carrier)) return false
+  // Priority Mail Express is overnight — block even if it matched priority
+  if (/priority\s*mail\s*express|express\s*mail/i.test(service)) return false
+  return ALLOWED_SHIPPING.some(
+    (rule) => rule.carrier.test(carrier.trim()) && rule.service.test(service.trim()),
+  )
+}
+
+export function filterAllowedRates(rates: ShippingRate[]): ShippingRate[] {
+  const filtered = rates.filter((r) => isAllowedShippingRate(r.carrier, r.service))
+  // Prefer one rate per carrier+family (ground vs priority) — keep cheapest of each label
+  const byKey = new Map<string, ShippingRate>()
+  for (const rate of filtered) {
+    const family = /priority/i.test(rate.service) ? 'priority' : 'ground'
+    const key = `${rate.carrier.toUpperCase()}:${family}`
+    const existing = byKey.get(key)
+    if (!existing || rate.rateCents < existing.rateCents) byKey.set(key, rate)
+  }
+  return Array.from(byKey.values()).sort((a, b) => a.rateCents - b.rateCents)
+}
+
 /**
  * Company ship-from for inventory packages (Purely Eve → partner).
  * Set via env so the warehouse address can be updated without a code deploy.
@@ -58,13 +101,31 @@ function shipFromPayload(): Record<string, string> {
   }
 }
 
+function parcelPayload(parcel: ParcelSpec) {
+  return {
+    weight: parcel.weightOz,
+    length: parcel.lengthIn,
+    width: parcel.widthIn,
+    height: parcel.heightIn,
+  }
+}
+
+function scaleRatesForBoxes(rates: ShippingRate[], boxCount: number): ShippingRate[] {
+  if (boxCount <= 1) return rates
+  return rates.map((r) => ({
+    ...r,
+    rateCents: r.rateCents * boxCount,
+    service: `${r.service} (${boxCount} boxes)`,
+  }))
+}
+
 export async function getPackageShippingRates(params: {
   to: EasyPostAddress
-  weightOz: number
+  parcel: ParcelSpec
 }): Promise<ShippingRate[]> {
   const apiKey = process.env.EASYPOST_API_KEY
   if (!apiKey) {
-    return fallbackRates(params.weightOz)
+    return filterAllowedRates(scaleRatesForBoxes(fallbackRates(params.parcel.weightOz), params.parcel.boxCount))
   }
 
   const auth = Buffer.from(`${apiKey}:`).toString('base64')
@@ -87,14 +148,14 @@ export async function getPackageShippingRates(params: {
           zip: params.to.zip,
           country: params.to.country ?? 'US',
         },
-        parcel: { weight: params.weightOz },
+        parcel: parcelPayload(params.parcel),
       },
     }),
   })
 
   if (!shipmentRes.ok) {
     console.error('[easypost] shipment error', await shipmentRes.text())
-    return fallbackRates(params.weightOz)
+    return filterAllowedRates(scaleRatesForBoxes(fallbackRates(params.parcel.weightOz), params.parcel.boxCount))
   }
 
   const shipment = (await shipmentRes.json()) as {
@@ -115,26 +176,31 @@ export async function getPackageShippingRates(params: {
       service: r.service,
       rateCents: Math.round(parseFloat(r.rate) * 100),
       deliveryDays: r.delivery_days,
-      shipmentId: shipment.id,
     }))
     .filter((r) => r.rateCents > 0)
-    .sort((a, b) => a.rateCents - b.rateCents)
 
-  return rates.map(({ shipmentId: _, ...rate }) => rate)
+  const allowed = filterAllowedRates(rates)
+  if (allowed.length === 0) {
+    return filterAllowedRates(scaleRatesForBoxes(fallbackRates(params.parcel.weightOz), params.parcel.boxCount))
+  }
+
+  return scaleRatesForBoxes(allowed, params.parcel.boxCount)
 }
 
-/** Flat estimates when EasyPost is not configured or returns no rates. */
+/** Flat estimates when EasyPost is not configured or returns no allowed rates. */
 function fallbackRates(weightOz: number): ShippingRate[] {
-  const base = weightOz <= 96 ? 1500 : 2800
+  const base = weightOz <= 96 ? 1500 : 2200
   return [
-    { id: 'fallback-ground', carrier: 'USPS', service: 'Ground Advantage (est.)', rateCents: base, deliveryDays: 5 },
-    { id: 'fallback-priority', carrier: 'USPS', service: 'Priority (est.)', rateCents: base + 800, deliveryDays: 3 },
+    { id: 'fallback-usps-ground', carrier: 'USPS', service: 'Ground Advantage', rateCents: base, deliveryDays: 5 },
+    { id: 'fallback-usps-priority', carrier: 'USPS', service: 'Priority', rateCents: base + 800, deliveryDays: 3 },
+    { id: 'fallback-ups-ground', carrier: 'UPS', service: 'Ground', rateCents: base + 400, deliveryDays: 4 },
+    { id: 'fallback-ups-priority', carrier: 'UPS', service: '3 Day Select', rateCents: base + 1200, deliveryDays: 3 },
   ]
 }
 
 export async function createEasyPostShipmentId(params: {
   to: EasyPostAddress
-  weightOz: number
+  parcel: ParcelSpec
 }): Promise<string | null> {
   const apiKey = process.env.EASYPOST_API_KEY
   if (!apiKey) return null
@@ -158,7 +224,7 @@ export async function createEasyPostShipmentId(params: {
           zip: params.to.zip,
           country: params.to.country ?? 'US',
         },
-        parcel: { weight: params.weightOz },
+        parcel: parcelPayload(params.parcel),
       },
     }),
   })
@@ -166,4 +232,20 @@ export async function createEasyPostShipmentId(params: {
   if (!shipmentRes.ok) return null
   const shipment = (await shipmentRes.json()) as { id: string }
   return shipment.id
+}
+
+export function parcelFromPackage(pkg: {
+  weight_oz: number
+  length_in?: number | null
+  width_in?: number | null
+  height_in?: number | null
+  box_count?: number | null
+}): ParcelSpec {
+  return {
+    weightOz: pkg.weight_oz,
+    lengthIn: Number(pkg.length_in ?? 14),
+    widthIn: Number(pkg.width_in ?? 14),
+    heightIn: Number(pkg.height_in ?? 4),
+    boxCount: Math.max(1, Number(pkg.box_count ?? 1)),
+  }
 }

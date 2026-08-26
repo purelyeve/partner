@@ -64,6 +64,10 @@ export interface InventoryPackage {
   unit_count: number
   price_cents: number
   weight_oz: number
+  length_in?: number
+  width_in?: number
+  height_in?: number
+  box_count?: number
   image_path: string
   is_active: boolean
   sort_order: number

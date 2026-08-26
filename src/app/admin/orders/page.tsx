@@ -57,7 +57,15 @@ export default async function AdminOrdersPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl">Inventory orders</h1>
+      <div>
+        <h1 className="text-3xl">Inventory orders</h1>
+        <p className="text-sm text-pe-brown mt-2 max-w-3xl leading-relaxed">
+          Paid Partner inventory packages are fulfilled here (not in Shopify). For each paid order:
+          buy and print the label in your company EasyPost account (using the ship-to address and
+          service the Partner selected), then paste the tracking number below and mark fulfilled.
+          Growth packages ship as two boxes of 20.
+        </p>
+      </div>
 
       <form className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3 text-sm" method="get">
         <label className="block">
@@ -108,10 +116,11 @@ export default async function AdminOrdersPage({
                 <th className="p-3">Order</th>
                 <th className="p-3">Partner</th>
                 <th className="p-3">Package</th>
+                <th className="p-3">Ship to</th>
                 <th className="p-3">Status</th>
                 <th className="p-3">Total</th>
                 <th className="p-3">Paid</th>
-                <th className="p-3">Actions</th>
+                <th className="p-3">Fulfill</th>
               </tr>
             </thead>
             <tbody>
@@ -126,6 +135,19 @@ export default async function AdminOrdersPage({
                       <span className="text-pe-brown">{profile.email}</span>
                     </td>
                     <td className="p-3">{o.name_snapshot}</td>
+                    <td className="p-3 text-xs leading-relaxed">
+                      <p>{o.ship_to_name}</p>
+                      <p>{o.ship_to_line1}</p>
+                      {o.ship_to_line2 ? <p>{o.ship_to_line2}</p> : null}
+                      <p>
+                        {o.ship_to_city}, {o.ship_to_state} {o.ship_to_postal_code}
+                      </p>
+                      {(o.shipping_carrier || o.shipping_service) && (
+                        <p className="text-pe-brown mt-1">
+                          Label: {[o.shipping_carrier, o.shipping_service].filter(Boolean).join(' ')}
+                        </p>
+                      )}
+                    </td>
                     <td className="p-3 capitalize">{o.status.replace('_', ' ')}</td>
                     <td className="p-3">{formatCurrency(o.total_cents)}</td>
                     <td className="p-3">{formatDate(o.paid_at)}</td>

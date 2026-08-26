@@ -19,7 +19,7 @@ export default function LoginPage({
     <PageShell>
       <div className="max-w-md mx-auto px-4 py-16">
         <h1 className="text-2xl mb-2">Sign in</h1>
-        <p className="text-sm text-pe-brown mb-8">Access your Partner or Admin account.</p>
+        <p className="text-sm text-pe-brown mb-8">Access your Partner account.</p>
 
         {reset && <Alert variant="success">Password updated. You can sign in now.</Alert>}
         {verified === '1' && (

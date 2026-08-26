@@ -23,7 +23,9 @@ export default async function PartnerDashboardPage() {
 
   const { data: orders } = await supabase
     .from('package_orders')
-    .select('id, order_number, name_snapshot, status, total_cents, created_at')
+    .select(
+      'id, order_number, name_snapshot, status, total_cents, created_at, tracking_code, shipping_carrier, shipping_service, fulfilled_at',
+    )
     .eq('distributor_id', distributor.id)
     .order('created_at', { ascending: false })
     .limit(5)
@@ -136,6 +138,7 @@ export default async function PartnerDashboardPage() {
                   <th className="p-3">Order</th>
                   <th className="p-3">Package</th>
                   <th className="p-3">Status</th>
+                  <th className="p-3">Tracking</th>
                   <th className="p-3">Total</th>
                   <th className="p-3">Date</th>
                 </tr>
@@ -146,6 +149,20 @@ export default async function PartnerDashboardPage() {
                     <td className="p-3">{o.order_number}</td>
                     <td className="p-3">{o.name_snapshot}</td>
                     <td className="p-3 capitalize">{o.status.replace('_', ' ')}</td>
+                    <td className="p-3 text-sm">
+                      {o.tracking_code ? (
+                        <span>
+                          {o.tracking_code}
+                          {(o.shipping_carrier || o.shipping_service) && (
+                            <span className="block text-xs text-pe-brown mt-0.5">
+                              {[o.shipping_carrier, o.shipping_service].filter(Boolean).join(' ')}
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-pe-brown">—</span>
+                      )}
+                    </td>
                     <td className="p-3">{formatCurrency(o.total_cents)}</td>
                     <td className="p-3">{formatDate(o.created_at)}</td>
                   </tr>

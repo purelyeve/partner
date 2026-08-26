@@ -8,9 +8,9 @@ export function Logo({ dark = false }: { dark?: boolean }) {
       <Image
         src={dark ? '/brand/logo-gold-on-black.jpg' : '/brand/logo-black-on-white.png'}
         alt={BRAND.name}
-        width={140}
-        height={48}
-        className="h-10 w-auto"
+        width={220}
+        height={72}
+        className="h-14 sm:h-16 w-auto"
         priority
       />
     </Link>

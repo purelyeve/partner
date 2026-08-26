@@ -10,9 +10,19 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { encryptTaxId, taxIdLast4 } from '@/lib/crypto'
 import { maybePromoteAdmin, logAudit } from '@/lib/admin'
 import { AGREEMENT_VERSION, DISTRIBUTOR_PROFILE } from '@/lib/constants'
-import { emailShell, sendEmail } from '@/lib/email'
+import {
+  appUrl,
+  emailShell,
+  notifyCompany,
+  partnerApprovalReadyEmailHtml,
+  sendEmail,
+} from '@/lib/email'
 import { generateOrderNumber } from '@/lib/utils'
-import { getPackageShippingRates, createEasyPostShipmentId } from '@/lib/easypost'
+import {
+  createEasyPostShipmentId,
+  getPackageShippingRates,
+  parcelFromPackage,
+} from '@/lib/easypost'
 import { getStripe } from '@/lib/stripe'
 import { fulfillmentAddress, hasCompleteShipToAddress } from '@/lib/auth'
 import type { ApplicationStatus, DocumentStatus } from '@/lib/types'
@@ -195,6 +205,17 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
   }
 
   await maybePromoteAdmin(authData.user.id, data.email)
+
+  await notifyCompany({
+    subject: `New Partner Portal registration — ${data.fullName}`,
+    html: emailShell(
+      'New Partner registration',
+      `<p><strong>${data.fullName}</strong> (${data.email}) submitted a Partner Portal registration.</p>
+       <p>Business: ${data.businessName || 'Personal'}</p>
+       <p>Resale certificate #: ${data.certificateNumber}</p>
+       <p><a href="${appUrl()}/admin/distributors/${distributor.id}">Review in admin</a></p>`,
+    ),
+  })
 
   return {
     success: true,
@@ -405,19 +426,45 @@ export async function adminDecideApplicationAction(_prev: ActionState, formData:
   })
 
   const profile = dist.profiles as { email: string; full_name: string }
-  const subject =
-    decision === 'approved'
-      ? 'Your Purely Eve Partner application has been approved'
-      : decision === 'declined'
+
+  if (decision === 'approved') {
+    // Full “order your package” email only when resale is already accepted.
+    // Otherwise send a short notice; the full email sends when resale is accepted.
+    if (dist.resale_accepted_at) {
+      await sendEmail({
+        to: profile.email,
+        subject: 'Congratulations — your Purely Eve Partner registration is approved',
+        html: partnerApprovalReadyEmailHtml({
+          fullName: profile.full_name,
+          portalLoginUrl: `${appUrl()}/login`,
+        }),
+      })
+    } else {
+      await sendEmail({
+        to: profile.email,
+        subject: 'Your Purely Eve Partner registration has been approved',
+        html: emailShell(
+          'Registration approved',
+          `<p>Hi ${profile.full_name},</p>
+           <p>Your Partner registration has been approved. Once your resale documentation is accepted, you will receive an email with next steps to place your opening inventory order.</p>
+           <p><a href="${appUrl()}/login">Sign in to the Partner Portal</a></p>`,
+        ),
+      })
+    }
+  } else {
+    const subject =
+      decision === 'declined'
         ? 'Update on your Purely Eve Partner application'
         : 'Your Purely Eve Partner account status has changed'
-
-  const body =
-    decision === 'approved'
-      ? `<p>Dear ${profile.full_name},</p><p>Your Partner registration has been approved. Once your resale documentation is accepted, you can purchase wholesale inventory packages from your Partner Portal.</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL}/login">Sign in to the Partner Portal</a></p>`
-      : `<p>Dear ${profile.full_name},</p><p>Your application status is now: <strong>${decision}</strong>.</p>${note ? `<p>Note: ${note}</p>` : ''}`
-
-  await sendEmail({ to: profile.email, subject, html: emailShell(subject, body) })
+    await sendEmail({
+      to: profile.email,
+      subject,
+      html: emailShell(
+        subject,
+        `<p>Dear ${profile.full_name},</p><p>Your application status is now: <strong>${decision}</strong>.</p>${note ? `<p>Note: ${note}</p>` : ''}`,
+      ),
+    })
+  }
 
   revalidatePath('/admin')
   return { success: true }
@@ -467,15 +514,48 @@ export async function adminReviewDocumentAction(_prev: ActionState, formData: Fo
       .eq('id', doc.distributor_id)
   }
 
-  const profiles = (doc.distributors as { profiles: { email: string; full_name: string } }).profiles
-  await sendEmail({
-    to: profiles.email,
-    subject: `Your resale certificate has been ${status}`,
-    html: emailShell(
-      'Document review update',
-      `<p>Dear ${profiles.full_name},</p><p>Your resale certificate was <strong>${status}</strong>.</p>${note ? `<p>Note: ${note}</p>` : ''}`,
-    ),
-  })
+  const distRow = doc.distributors as {
+    id: string
+    profiles: { email: string; full_name: string }
+  }
+  const profiles = distRow.profiles
+
+  if (doc.kind === 'resale_certificate' && status === 'accepted') {
+    const { data: fresh } = await admin
+      .from('distributors')
+      .select('application_status, resale_accepted_at')
+      .eq('id', doc.distributor_id)
+      .single()
+
+    if (fresh?.application_status === 'approved' && fresh.resale_accepted_at) {
+      await sendEmail({
+        to: profiles.email,
+        subject: 'Congratulations — your Purely Eve Partner registration is approved',
+        html: partnerApprovalReadyEmailHtml({
+          fullName: profiles.full_name,
+          portalLoginUrl: `${appUrl()}/login`,
+        }),
+      })
+    } else {
+      await sendEmail({
+        to: profiles.email,
+        subject: 'Your resale certificate has been accepted',
+        html: emailShell(
+          'Document review update',
+          `<p>Dear ${profiles.full_name},</p><p>Your resale certificate was <strong>accepted</strong>.</p>${note ? `<p>Note: ${note}</p>` : ''}`,
+        ),
+      })
+    }
+  } else {
+    await sendEmail({
+      to: profiles.email,
+      subject: `Your resale certificate has been ${status}`,
+      html: emailShell(
+        'Document review update',
+        `<p>Dear ${profiles.full_name},</p><p>Your resale certificate was <strong>${status}</strong>.</p>${note ? `<p>Note: ${note}</p>` : ''}`,
+      ),
+    })
+  }
 
   revalidatePath('/admin')
   return { success: true }
@@ -524,7 +604,7 @@ export async function getShippingRatesAction(formData: FormData) {
       zip: addr.postal_code,
       country: addr.country,
     },
-    weightOz: pkg.weight_oz,
+    parcel: parcelFromPackage(pkg),
   })
 
   return { rates, package: pkg, address: addr }
@@ -585,7 +665,7 @@ export async function createPackageCheckoutAction(_prev: ActionState, formData: 
       zip: addr.postal_code,
       country: addr.country,
     },
-    weightOz: pkg.weight_oz,
+    parcel: parcelFromPackage(pkg),
   })
 
   const { data: order, error: orderError } = await supabase
