@@ -249,3 +249,194 @@ export function parcelFromPackage(pkg: {
     boxCount: Math.max(1, Number(pkg.box_count ?? 1)),
   }
 }
+
+function normalizeServiceName(service: string): string {
+  return service.replace(/\s*\(\d+\s*boxes?\)\s*$/i, '').trim()
+}
+
+function ratesMatch(
+  rateCarrier: string,
+  rateService: string,
+  wantCarrier: string,
+  wantService: string,
+): boolean {
+  const c = rateCarrier.trim().toLowerCase()
+  const s = normalizeServiceName(rateService).toLowerCase()
+  const wc = wantCarrier.trim().toLowerCase()
+  const ws = normalizeServiceName(wantService).toLowerCase()
+  if (c !== wc && !c.includes(wc) && !wc.includes(c)) return false
+  if (s === ws) return true
+  // Loose match: both ground or both priority family
+  const ratePri = /priority|3.?day|saver/i.test(s)
+  const wantPri = /priority|3.?day|saver/i.test(ws)
+  const rateGround = /ground/i.test(s)
+  const wantGround = /ground/i.test(ws)
+  if (ratePri && wantPri) return true
+  if (rateGround && wantGround) return true
+  return s.includes(ws) || ws.includes(s)
+}
+
+export type PurchasedLabel = {
+  trackingCode: string
+  labelUrl: string
+  shipmentId: string
+  rateId: string
+  carrier: string
+  service: string
+}
+
+/**
+ * Create a shipment and buy a label for one box on the company EasyPost account.
+ */
+export async function buyCompanyLabel(params: {
+  to: EasyPostAddress
+  parcel: Omit<ParcelSpec, 'boxCount'>
+  carrier: string
+  service: string
+}): Promise<{ ok: true; label: PurchasedLabel } | { ok: false; error: string }> {
+  const apiKey = process.env.EASYPOST_API_KEY
+  if (!apiKey) {
+    return { ok: false, error: 'EasyPost is not configured. Add EASYPOST_API_KEY to continue.' }
+  }
+  if (!isCompanyShipFromConfigured()) {
+    return { ok: false, error: 'Company ship-from address is not configured.' }
+  }
+
+  const auth = Buffer.from(`${apiKey}:`).toString('base64')
+  const headers = {
+    Authorization: `Basic ${auth}`,
+    'Content-Type': 'application/json',
+  }
+
+  const shipmentRes = await fetch(`${EASYPOST_API}/shipments`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      shipment: {
+        from_address: shipFromPayload(),
+        to_address: {
+          name: params.to.name,
+          street1: params.to.street1,
+          street2: params.to.street2 ?? '',
+          city: params.to.city,
+          state: params.to.state,
+          zip: params.to.zip,
+          country: params.to.country ?? 'US',
+        },
+        parcel: {
+          weight: params.parcel.weightOz,
+          length: params.parcel.lengthIn,
+          width: params.parcel.widthIn,
+          height: params.parcel.heightIn,
+        },
+      },
+    }),
+  })
+
+  if (!shipmentRes.ok) {
+    const detail = await shipmentRes.text()
+    console.error('[easypost] create for buy failed', detail)
+    return { ok: false, error: 'Could not create EasyPost shipment for this label.' }
+  }
+
+  const shipment = (await shipmentRes.json()) as {
+    id: string
+    rates: Array<{ id: string; carrier: string; service: string; rate: string }>
+  }
+
+  const candidates = (shipment.rates ?? []).filter((r) =>
+    isAllowedShippingRate(r.carrier, r.service),
+  )
+  let rate =
+    candidates.find((r) => ratesMatch(r.carrier, r.service, params.carrier, params.service)) ??
+    null
+
+  if (!rate && candidates.length > 0) {
+    // Prefer cheapest allowed if exact service is unavailable
+    rate = [...candidates].sort((a, b) => parseFloat(a.rate) - parseFloat(b.rate))[0] ?? null
+  }
+
+  if (!rate) {
+    return {
+      ok: false,
+      error: `No matching ${params.carrier} ${normalizeServiceName(params.service)} rate from EasyPost.`,
+    }
+  }
+
+  const buyRes = await fetch(`${EASYPOST_API}/shipments/${shipment.id}/buy`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ rate: { id: rate.id } }),
+  })
+
+  if (!buyRes.ok) {
+    const detail = await buyRes.text()
+    console.error('[easypost] buy failed', detail)
+    return { ok: false, error: 'EasyPost could not purchase this shipping label. Check carrier account funding.' }
+  }
+
+  const bought = (await buyRes.json()) as {
+    id: string
+    tracking_code?: string
+    postage_label?: { label_url?: string; label_pdf_url?: string }
+    selected_rate?: { id: string; carrier: string; service: string }
+  }
+
+  const labelUrl =
+    bought.postage_label?.label_pdf_url ||
+    bought.postage_label?.label_url ||
+    ''
+
+  if (!labelUrl) {
+    return { ok: false, error: 'Label purchased but EasyPost did not return a label file URL.' }
+  }
+
+  return {
+    ok: true,
+    label: {
+      trackingCode: bought.tracking_code || '',
+      labelUrl,
+      shipmentId: bought.id || shipment.id,
+      rateId: bought.selected_rate?.id || rate.id,
+      carrier: bought.selected_rate?.carrier || rate.carrier,
+      service: bought.selected_rate?.service || rate.service,
+    },
+  }
+}
+
+/** Buy one label per box (Growth = 2). */
+export async function buyCompanyLabelsForOrder(params: {
+  to: EasyPostAddress
+  parcel: ParcelSpec
+  carrier: string
+  service: string
+}): Promise<{ ok: true; labels: PurchasedLabel[] } | { ok: false; error: string }> {
+  const boxCount = Math.max(1, params.parcel.boxCount)
+  const labels: PurchasedLabel[] = []
+
+  for (let i = 0; i < boxCount; i++) {
+    const result = await buyCompanyLabel({
+      to: params.to,
+      parcel: {
+        weightOz: params.parcel.weightOz,
+        lengthIn: params.parcel.lengthIn,
+        widthIn: params.parcel.widthIn,
+        heightIn: params.parcel.heightIn,
+      },
+      carrier: params.carrier,
+      service: params.service,
+    })
+    if (!result.ok) {
+      return {
+        ok: false,
+        error:
+          boxCount > 1
+            ? `Box ${i + 1} of ${boxCount}: ${result.error}`
+            : result.error,
+      }
+    }
+    labels.push(result.label)
+  }
+
+  return { ok: true, labels }
+}

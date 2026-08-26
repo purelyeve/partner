@@ -102,6 +102,8 @@ export interface PackageOrder {
   stripe_checkout_session_id: string | null
   paid_at: string | null
   tracking_code: string
+  label_url?: string
+  label_urls?: string[]
   created_at: string
 }
 

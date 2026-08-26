@@ -1,7 +1,7 @@
 import { getAdminDb } from '@/lib/admin'
 import { requireAdmin } from '@/lib/auth'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { FulfillOrderForm } from './fulfill-form'
+import { BuyLabelForm, LabelLinks } from './fulfill-form'
 import { DISTRIBUTOR_PROFILE } from '@/lib/constants'
 import type { Profile } from '@/lib/types'
 
@@ -57,15 +57,7 @@ export default async function AdminOrdersPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl">Inventory orders</h1>
-        <p className="text-sm text-pe-brown mt-2 max-w-3xl leading-relaxed">
-          Paid Partner inventory packages are fulfilled here (not in Shopify). For each paid order:
-          buy and print the label in your company EasyPost account (using the ship-to address and
-          service the Partner selected), then paste the tracking number below and mark fulfilled.
-          Growth packages ship as two boxes of 20.
-        </p>
-      </div>
+      <h1 className="text-3xl">Inventory orders</h1>
 
       <form className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3 text-sm" method="get">
         <label className="block">
@@ -91,18 +83,22 @@ export default async function AdminOrdersPage({
           <input type="date" name="to" defaultValue={to} />
         </label>
         <div className="flex items-end gap-2">
-          <button type="submit" className="h-10 px-4 bg-pe-dark-brown text-pe-cream rounded-sm cursor-pointer hover:bg-pe-brown transition-colors">
+          <button
+            type="submit"
+            className="h-10 px-4 bg-pe-dark-brown text-pe-cream rounded-sm cursor-pointer hover:bg-pe-brown transition-colors"
+          >
             Filter
           </button>
-          <a href="/admin/orders" className="h-10 px-3 inline-flex items-center text-pe-brown cursor-pointer hover:text-pe-gold hover:underline underline-offset-4">
+          <a
+            href="/admin/orders"
+            className="h-10 px-3 inline-flex items-center text-pe-brown cursor-pointer hover:text-pe-gold hover:underline underline-offset-4"
+          >
             Reset
           </a>
         </div>
       </form>
 
-      {error && (
-        <p className="text-sm text-red-600">Could not load orders: {error.message}</p>
-      )}
+      {error && <p className="text-sm text-red-600">Could not load orders: {error.message}</p>}
 
       {!error && filtered.length === 0 && (
         <p className="text-sm text-pe-brown">No inventory orders match these filters.</p>
@@ -127,12 +123,19 @@ export default async function AdminOrdersPage({
               {filtered.map((o) => {
                 const dist = o.distributors as { business_name: string; profiles: unknown }
                 const profile = asProfile(dist.profiles)
+                const partnerName = profile.full_name?.trim() || dist.business_name || 'Partner'
+                const labelUrls = (o.label_urls as string[] | null) ?? []
                 return (
                   <tr key={o.id} className="border-t border-pe-beige align-top">
                     <td className="p-3">{o.order_number}</td>
                     <td className="p-3">
-                      {dist.business_name}<br />
-                      <span className="text-pe-brown">{profile.email}</span>
+                      {partnerName}
+                      {dist.business_name?.trim() &&
+                        dist.business_name.trim() !== partnerName && (
+                          <span className="block text-xs text-pe-brown mt-0.5">
+                            {dist.business_name}
+                          </span>
+                        )}
                     </td>
                     <td className="p-3">{o.name_snapshot}</td>
                     <td className="p-3 text-xs leading-relaxed">
@@ -143,8 +146,8 @@ export default async function AdminOrdersPage({
                         {o.ship_to_city}, {o.ship_to_state} {o.ship_to_postal_code}
                       </p>
                       {(o.shipping_carrier || o.shipping_service) && (
-                        <p className="text-pe-brown mt-1">
-                          Label: {[o.shipping_carrier, o.shipping_service].filter(Boolean).join(' ')}
+                        <p className="mt-1 text-pe-brown">
+                          {[o.shipping_carrier, o.shipping_service].filter(Boolean).join(' ')}
                         </p>
                       )}
                     </td>
@@ -152,9 +155,13 @@ export default async function AdminOrdersPage({
                     <td className="p-3">{formatCurrency(o.total_cents)}</td>
                     <td className="p-3">{formatDate(o.paid_at)}</td>
                     <td className="p-3">
-                      {o.status === 'paid' && <FulfillOrderForm orderId={o.id} />}
-                      {o.tracking_code && (
-                        <p className="text-xs mt-1">Tracking: {o.tracking_code}</p>
+                      {o.status === 'paid' && <BuyLabelForm orderId={o.id} />}
+                      {(o.status === 'fulfilled' || o.tracking_code || o.label_url || labelUrls.length > 0) && (
+                        <LabelLinks
+                          labelUrl={o.label_url}
+                          labelUrls={labelUrls}
+                          tracking={o.tracking_code}
+                        />
                       )}
                     </td>
                   </tr>

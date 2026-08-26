@@ -19,6 +19,7 @@ import {
 } from '@/lib/email'
 import { generateOrderNumber } from '@/lib/utils'
 import {
+  buyCompanyLabelsForOrder,
   createEasyPostShipmentId,
   getPackageShippingRates,
   parcelFromPackage,
@@ -741,7 +742,163 @@ export async function createPackageCheckoutAction(_prev: ActionState, formData: 
   redirect(session.url)
 }
 
+export async function adminBuyLabelAndFulfillAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const orderId = String(formData.get('orderId') ?? '')
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not signed in' }
+
+  const admin = createAdminClient()
+  const { data: order } = await admin
+    .from('package_orders')
+    .select(`*, distributors(${DISTRIBUTOR_PROFILE}(email, full_name)), inventory_packages(*)`)
+    .eq('id', orderId)
+    .single()
+
+  if (!order || order.status !== 'paid') {
+    return { error: 'Order not eligible for label purchase' }
+  }
+
+  const pkg = order.inventory_packages as {
+    weight_oz: number
+    length_in?: number | null
+    width_in?: number | null
+    height_in?: number | null
+    box_count?: number | null
+  } | null
+
+  if (!pkg) return { error: 'Package details missing for this order' }
+
+  const parcel = parcelFromPackage(pkg)
+  const purchased = await buyCompanyLabelsForOrder({
+    to: {
+      name: order.ship_to_name,
+      street1: order.ship_to_line1,
+      street2: order.ship_to_line2,
+      city: order.ship_to_city,
+      state: order.ship_to_state,
+      zip: order.ship_to_postal_code,
+      country: order.ship_to_country || 'US',
+    },
+    parcel,
+    carrier: order.shipping_carrier || 'USPS',
+    service: order.shipping_service || 'Ground Advantage',
+  })
+
+  if (!purchased.ok) return { error: purchased.error }
+
+  const labelUrls = purchased.labels.map((l) => l.labelUrl)
+  const trackingCodes = purchased.labels.map((l) => l.trackingCode).filter(Boolean)
+  const storedPaths: string[] = []
+
+  for (let i = 0; i < purchased.labels.length; i++) {
+    const label = purchased.labels[i]
+    try {
+      const fileRes = await fetch(label.labelUrl)
+      if (fileRes.ok) {
+        const bytes = Buffer.from(await fileRes.arrayBuffer())
+        const contentType = fileRes.headers.get('content-type') || 'application/pdf'
+        const ext = contentType.includes('png') ? 'png' : contentType.includes('jpeg') ? 'jpg' : 'pdf'
+        const path = `package-orders/${orderId}/label-${i + 1}.${ext}`
+        const { error: uploadError } = await admin.storage
+          .from('shipping-labels')
+          .upload(path, bytes, { contentType, upsert: true })
+        if (!uploadError) storedPaths.push(path)
+      }
+    } catch (err) {
+      console.error('[label] storage upload failed', err)
+    }
+  }
+
+  const primaryLabelUrl = labelUrls[0] || ''
+  const tracking = trackingCodes.join(', ')
+
+  await admin
+    .from('package_orders')
+    .update({
+      status: 'fulfilled',
+      fulfilled_at: new Date().toISOString(),
+      tracking_code: tracking,
+      label_url: primaryLabelUrl,
+      label_urls: labelUrls,
+      easypost_shipment_id: purchased.labels.map((l) => l.shipmentId).join(','),
+      easypost_rate_id: purchased.labels.map((l) => l.rateId).join(','),
+      shipping_carrier: purchased.labels[0]?.carrier || order.shipping_carrier,
+      shipping_service:
+        purchased.labels.length > 1
+          ? `${purchased.labels[0]?.service || order.shipping_service} (${purchased.labels.length} boxes)`
+          : purchased.labels[0]?.service || order.shipping_service,
+    })
+    .eq('id', orderId)
+
+  await logAudit({
+    actorId: user.id,
+    action: 'package_order_label_purchased',
+    entityType: 'package_order',
+    entityId: orderId,
+    detail: {
+      tracking,
+      labelUrls,
+      storedPaths,
+      boxes: purchased.labels.length,
+    },
+  })
+
+  const profiles = (order.distributors as { profiles: { email: string; full_name: string } }).profiles
+  await sendEmail({
+    to: profiles.email,
+    subject: `Your inventory order ${order.order_number} has shipped`,
+    html: emailShell(
+      'Order shipped',
+      `<p>Dear ${profiles.full_name},</p>
+       <p>Your inventory package order <strong>${order.order_number}</strong> has shipped.</p>
+       ${tracking ? `<p>Tracking: <strong>${tracking}</strong></p>` : ''}
+       <p><a href="${appUrl()}/login">Sign in to the Partner Portal</a> to view your order.</p>`,
+    ),
+  })
+
+  revalidatePath('/admin/orders')
+  revalidatePath('/admin')
+  return { success: true, message: 'Label purchased and order marked fulfilled.' }
+}
+
+/** Signed URL so admin can reprint a stored or EasyPost label PDF. */
+export async function getPackageLabelSignedUrlAction(orderId: string): Promise<{
+  url?: string
+  error?: string
+}> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not signed in' }
+
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role !== 'admin') return { error: 'Not authorized' }
+
+  const admin = createAdminClient()
+  const { data: order } = await admin
+    .from('package_orders')
+    .select('label_url, label_urls')
+    .eq('id', orderId)
+    .single()
+
+  if (!order) return { error: 'Order not found' }
+
+  const urls = (order.label_urls as string[] | null)?.filter(Boolean) ?? []
+  const url = urls[0] || order.label_url
+  if (!url) return { error: 'No label on file for this order' }
+  return { url }
+}
+
 export async function adminFulfillOrderAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  // Kept for rare manual override; prefer adminBuyLabelAndFulfillAction.
   const orderId = String(formData.get('orderId') ?? '')
   const tracking = String(formData.get('tracking') ?? '')
 

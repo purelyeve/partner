@@ -15,7 +15,7 @@ set
   width_in = 14,
   height_in = 4,
   box_count = 1,
-  description = 'Purely Eve Partner starter inventory package contains 20 individually boxed Eve Origin Serums, 30 mL / 1 oz each. Ships in one 14×14×4 in box (~8–9 lb).'
+  description = 'Purely Eve Partner starter inventory package contains 20 individually boxed Eve Origin Serums, 30 mL / 1 oz each.'
 where sku = 'PE-PKG-START';
 
 update inventory_packages
@@ -25,5 +25,5 @@ set
   width_in = 14,
   height_in = 4,
   box_count = 2,
-  description = 'Purely Eve Partner growth inventory package contains 40 individually boxed Eve Origin Serums, 30 mL / 1 oz each. Ships as two 14×14×4 in boxes (~8–9 lb each); shipping is quoted as two boxes.'
+  description = 'Purely Eve Partner growth inventory package contains 40 individually boxed Eve Origin Serums, 30 mL / 1 oz each.'
 where sku = 'PE-PKG-GROWTH';

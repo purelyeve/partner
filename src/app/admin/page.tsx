@@ -35,17 +35,8 @@ export default async function AdminDashboardPage() {
     .limit(5)
 
   return (
-      <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl">Admin overview</h1>
-        <p className="text-sm text-pe-brown mt-2 max-w-2xl">
-          Inventory package orders and fulfillment live under{' '}
-          <a href="/admin/orders" className="underline underline-offset-2 hover:text-pe-gold">
-            Inventory orders
-          </a>
-          . Buy labels in EasyPost, then paste tracking there to mark shipped.
-        </p>
-      </div>
+    <div className="space-y-8">
+      <h1 className="text-3xl">Admin overview</h1>
 
       <div className="grid sm:grid-cols-3 gap-4">
         <Card>
