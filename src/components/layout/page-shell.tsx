@@ -8,9 +8,9 @@ export function Logo({ dark = false }: { dark?: boolean }) {
       <Image
         src={dark ? '/brand/logo-gold-on-black.jpg' : '/brand/logo-black-on-white.png'}
         alt={BRAND.name}
-        width={220}
-        height={72}
-        className="h-14 sm:h-16 w-auto"
+        width={260}
+        height={88}
+        className="h-16 sm:h-[4.5rem] w-auto"
         priority
       />
     </Link>
@@ -33,7 +33,7 @@ export function PageShell({
             : 'bg-pe-white border-b border-pe-beige'
         }
       >
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-between">
           <Logo dark={darkHeader} />
           <span className="text-xs tracking-[0.2em] uppercase text-pe-gold">{BRAND.tagline}</span>
         </div>

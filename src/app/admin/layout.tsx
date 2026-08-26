@@ -15,7 +15,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div className="min-h-screen flex flex-col">
       <header className="bg-pe-dark-brown text-pe-cream border-b border-pe-brown">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4">
+        <div className="max-w-6xl mx-auto px-4 py-2 flex flex-wrap items-center justify-between gap-4">
           <Logo dark />
           <nav className="flex flex-wrap items-center gap-4 text-sm">
             {NAV.map((item) => (

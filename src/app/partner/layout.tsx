@@ -18,7 +18,7 @@ export default async function PartnerLayout({ children }: { children: React.Reac
   return (
     <div className="min-h-screen flex flex-col bg-pe-cream/30">
       <header className="bg-pe-white border-b border-pe-beige">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4">
+        <div className="max-w-5xl mx-auto px-4 py-2 flex flex-wrap items-center justify-between gap-4">
           <Logo />
           <nav className="flex flex-wrap items-center gap-4 text-sm">
             {NAV.map((item) => (
