@@ -119,13 +119,36 @@ function scaleRatesForBoxes(rates: ShippingRate[], boxCount: number): ShippingRa
   }))
 }
 
+export type ShippingRatesResult =
+  | { ok: true; rates: ShippingRate[]; shipmentId: string }
+  | { ok: false; error: string; rates: ShippingRate[] }
+
+/**
+ * Live EasyPost rates for package checkout.
+ * When an API key is set, do NOT fall back to fake rates — those cannot be purchased later.
+ */
 export async function getPackageShippingRates(params: {
   to: EasyPostAddress
   parcel: ParcelSpec
-}): Promise<ShippingRate[]> {
+}): Promise<ShippingRatesResult> {
   const apiKey = process.env.EASYPOST_API_KEY
   if (!apiKey) {
-    return filterAllowedRates(scaleRatesForBoxes(fallbackRates(params.parcel.weightOz), params.parcel.boxCount))
+    return {
+      ok: true,
+      rates: filterAllowedRates(
+        scaleRatesForBoxes(fallbackRates(params.parcel.weightOz), params.parcel.boxCount),
+      ),
+      shipmentId: '',
+    }
+  }
+
+  if (!isCompanyShipFromConfigured()) {
+    return {
+      ok: false,
+      rates: [],
+      error:
+        'Company ship-from address is not configured. Shipping rates cannot be quoted until ship-from is set.',
+    }
   }
 
   const auth = Buffer.from(`${apiKey}:`).toString('base64')
@@ -154,8 +177,14 @@ export async function getPackageShippingRates(params: {
   })
 
   if (!shipmentRes.ok) {
-    console.error('[easypost] shipment error', await shipmentRes.text())
-    return filterAllowedRates(scaleRatesForBoxes(fallbackRates(params.parcel.weightOz), params.parcel.boxCount))
+    const detail = await shipmentRes.text()
+    console.error('[easypost] shipment error', detail)
+    return {
+      ok: false,
+      rates: [],
+      error:
+        'EasyPost could not quote shipping for this address. Confirm USPS/UPS are connected in EasyPost test mode and the ship-to address is complete.',
+    }
   }
 
   const shipment = (await shipmentRes.json()) as {
@@ -169,7 +198,7 @@ export async function getPackageShippingRates(params: {
     }>
   }
 
-  const rates = shipment.rates
+  const rates = (shipment.rates ?? [])
     .map((r) => ({
       id: r.id,
       carrier: r.carrier,
@@ -181,10 +210,18 @@ export async function getPackageShippingRates(params: {
 
   const allowed = filterAllowedRates(rates)
   if (allowed.length === 0) {
-    return filterAllowedRates(scaleRatesForBoxes(fallbackRates(params.parcel.weightOz), params.parcel.boxCount))
+    return {
+      ok: false,
+      rates: [],
+      error: noRatesError(rates.length, 'USPS', 'Ground Advantage'),
+    }
   }
 
-  return scaleRatesForBoxes(allowed, params.parcel.boxCount)
+  return {
+    ok: true,
+    rates: scaleRatesForBoxes(allowed, params.parcel.boxCount),
+    shipmentId: shipment.id,
+  }
 }
 
 /** Flat estimates when EasyPost is not configured or returns no allowed rates. */

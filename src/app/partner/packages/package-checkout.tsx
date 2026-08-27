@@ -18,6 +18,7 @@ export function PackageCheckout({
 }) {
   const [selectedPkg, setSelectedPkg] = useState<InventoryPackage | null>(null)
   const [rates, setRates] = useState<ShippingRate[]>([])
+  const [shipmentId, setShipmentId] = useState('')
   const [selectedRate, setSelectedRate] = useState<ShippingRate | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [ratesPending, startTransition] = useTransition()
@@ -26,13 +27,21 @@ export function PackageCheckout({
   function loadRates(pkg: InventoryPackage) {
     setSelectedPkg(pkg)
     setSelectedRate(null)
+    setRates([])
+    setShipmentId('')
     setError(null)
     startTransition(async () => {
       const fd = new FormData()
       fd.set('packageId', pkg.id)
       const result = await getShippingRatesAction(fd)
-      if (result.error) setError(result.error)
-      else setRates(result.rates ?? [])
+      if (result.error) {
+        setError(result.error)
+        setRates([])
+        setShipmentId('')
+      } else {
+        setRates(result.rates ?? [])
+        setShipmentId(result.shipmentId ?? '')
+      }
     })
   }
 
@@ -135,6 +144,7 @@ export function PackageCheckout({
             <form action={checkoutAction} className="mt-6 pt-6 border-t border-pe-beige">
               <input type="hidden" name="packageId" value={selectedPkg.id} />
               <input type="hidden" name="rateId" value={selectedRate.id} />
+              <input type="hidden" name="shipmentId" value={shipmentId} />
               <input type="hidden" name="carrier" value={selectedRate.carrier} />
               <input type="hidden" name="service" value={selectedRate.service} />
               <input type="hidden" name="shippingCents" value={selectedRate.rateCents} />

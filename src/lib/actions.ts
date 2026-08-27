@@ -585,7 +585,7 @@ export async function getShippingRatesAction(formData: FormData) {
   if (!pkg) return { error: 'Package not found' }
 
   const addr = fulfillmentAddress(distributor)
-  const rates = await getPackageShippingRates({
+  const result = await getPackageShippingRates({
     to: {
       name: addr.name,
       street1: addr.line1,
@@ -598,7 +598,14 @@ export async function getShippingRatesAction(formData: FormData) {
     parcel: parcelFromPackage(pkg),
   })
 
-  return { rates, package: pkg, address: addr }
+  if (!result.ok) return { error: result.error }
+
+  return {
+    rates: result.rates,
+    shipmentId: result.shipmentId,
+    package: pkg,
+    address: addr,
+  }
 }
 
 export async function createPackageCheckoutAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -607,6 +614,7 @@ export async function createPackageCheckoutAction(_prev: ActionState, formData: 
   const carrier = String(formData.get('carrier') ?? '')
   const service = String(formData.get('service') ?? '')
   const shippingCents = Number(formData.get('shippingCents') ?? 0)
+  const shipmentIdFromRates = String(formData.get('shipmentId') ?? '').trim()
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -646,18 +654,30 @@ export async function createPackageCheckoutAction(_prev: ActionState, formData: 
   const total = subtotal + shippingCents
   const orderNumber = generateOrderNumber()
 
-  const shipmentId = await createEasyPostShipmentId({
-    to: {
-      name: addr.name,
-      street1: addr.line1,
-      street2: addr.line2,
-      city: addr.city,
-      state: addr.state,
-      zip: addr.postal_code,
-      country: addr.country,
-    },
-    parcel: parcelFromPackage(pkg),
-  })
+  // Prefer the shipment from the live rate quote. Fake fallback rate ids cannot be purchased.
+  if (rateId.startsWith('fallback-')) {
+    return {
+      error:
+        'Shipping rates are not available from EasyPost right now. Confirm USPS/UPS are connected in EasyPost test mode, then select shipping again.',
+    }
+  }
+
+  let shipmentId = shipmentIdFromRates
+  if (!shipmentId) {
+    shipmentId =
+      (await createEasyPostShipmentId({
+        to: {
+          name: addr.name,
+          street1: addr.line1,
+          street2: addr.line2,
+          city: addr.city,
+          state: addr.state,
+          zip: addr.postal_code,
+          country: addr.country,
+        },
+        parcel: parcelFromPackage(pkg),
+      })) ?? ''
+  }
 
   const { data: order, error: orderError } = await supabase
     .from('package_orders')
@@ -683,7 +703,7 @@ export async function createPackageCheckoutAction(_prev: ActionState, formData: 
       ship_to_country: addr.country,
       shipping_carrier: carrier,
       shipping_service: service,
-      easypost_shipment_id: shipmentId ?? '',
+      easypost_shipment_id: shipmentId,
       easypost_rate_id: rateId,
       status: 'awaiting_payment',
     })
