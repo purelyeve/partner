@@ -779,6 +779,8 @@ export async function adminBuyLabelAndFulfillAction(
     parcel,
     carrier: order.shipping_carrier || 'USPS',
     service: order.shipping_service || 'Ground Advantage',
+    easypostShipmentId: order.easypost_shipment_id || undefined,
+    easypostRateId: order.easypost_rate_id || undefined,
   })
 
   if (!purchased.ok) return { error: purchased.error }
@@ -840,7 +842,11 @@ export async function adminBuyLabelAndFulfillAction(
 
   revalidatePath('/admin/orders')
   revalidatePath('/admin')
-  return { success: true, message: 'Label purchased. Print it, then mark the order fulfilled.' }
+  const fallbackNote = purchased.note ? ` ${purchased.note}` : ''
+  return {
+    success: true,
+    message: `Label purchased. Print it, then mark the order fulfilled.${fallbackNote}`,
+  }
 }
 
 /** Signed URL so admin can reprint a stored or EasyPost label PDF. */
