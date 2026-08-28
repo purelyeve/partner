@@ -1,6 +1,7 @@
 -- Client-confirmed ship dims for inventory packages (Aug 2026):
--- Starter (20): one box 14 x 14 x 4 in, ~8–9 lb
+-- Starter (20): one box 14 x 14 x 4 in
 -- Growth (40): two of the same boxes (rates quoted as 2× single-box)
+-- Weights later corrected in 0008 (10 lb per box / 20 lb Growth total).
 
 alter table inventory_packages
   add column if not exists length_in numeric(6,2) not null default 14,

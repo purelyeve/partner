@@ -5,8 +5,11 @@ import { requireSession } from '@/lib/auth'
 
 const NAV = [
   { href: '/partner', label: 'Dashboard' },
+  { href: '/partner/inventory', label: 'Inventory' },
+  { href: '/partner/customers', label: 'Customers' },
+  { href: '/partner/invoices', label: 'Invoices' },
+  { href: '/partner/packages', label: 'Packages' },
   { href: '/partner/profile', label: 'Profile' },
-  { href: '/partner/packages', label: 'Inventory packages' },
 ]
 
 export default async function PartnerLayout({ children }: { children: React.ReactNode }) {

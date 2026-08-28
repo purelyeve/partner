@@ -6,6 +6,7 @@ import { requireAdmin } from '@/lib/auth'
 const NAV = [
   { href: '/admin', label: 'Overview' },
   { href: '/admin/distributors', label: 'Distributors' },
+  { href: '/admin/products', label: 'Products' },
   { href: '/admin/orders', label: 'Inventory orders' },
 ]
 

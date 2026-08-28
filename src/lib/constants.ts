@@ -18,14 +18,16 @@ export const COLORS = {
   lightBeige: '#e8dcc8',
 } as const
 
-export const CONSUMER_SERUM_SKU = 'PE-SERUM-30'
+export const CONSUMER_SERUM_SKU = 'PE-SERUM-1'
 
 export const PRICING = {
   retailCents: 8400,
   wholesaleCents: 4200,
-  introCents: 6900,
   introDays: 30,
 } as const
+
+export const INVOICE_EXPIRY_DAYS = 30
+export const LOW_STOCK_THRESHOLD = 10
 
 export { AGREEMENT_VERSION_LABEL as AGREEMENT_VERSION } from '@/content/partner-agreement'
 

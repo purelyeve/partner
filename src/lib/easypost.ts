@@ -130,6 +130,7 @@ export type ShippingRatesResult =
 export async function getPackageShippingRates(params: {
   to: EasyPostAddress
   parcel: ParcelSpec
+  from?: EasyPostAddress
 }): Promise<ShippingRatesResult> {
   const apiKey = process.env.EASYPOST_API_KEY
   if (!apiKey) {
@@ -142,12 +143,34 @@ export async function getPackageShippingRates(params: {
     }
   }
 
-  if (!isCompanyShipFromConfigured()) {
+  const fromAddress = params.from
+    ? {
+        name: params.from.name || '',
+        company: params.from.company || params.from.name || '',
+        phone: params.from.phone || '',
+        street1: params.from.street1,
+        street2: params.from.street2 || '',
+        city: params.from.city,
+        state: params.from.state,
+        zip: params.from.zip,
+        country: params.from.country || 'US',
+      }
+    : shipFromPayload()
+
+  if (!params.from && !isCompanyShipFromConfigured()) {
     return {
       ok: false,
       rates: [],
       error:
         'Company ship-from address is not configured. Shipping rates cannot be quoted until ship-from is set.',
+    }
+  }
+
+  if (params.from && (!fromAddress.street1 || !fromAddress.city || !fromAddress.state || !fromAddress.zip)) {
+    return {
+      ok: false,
+      rates: [],
+      error: 'Partner ship-from address is incomplete. Update your fulfillment address in Profile.',
     }
   }
 
@@ -161,7 +184,7 @@ export async function getPackageShippingRates(params: {
     },
     body: JSON.stringify({
       shipment: {
-        from_address: shipFromPayload(),
+        from_address: fromAddress,
         to_address: {
           name: params.to.name,
           street1: params.to.street1,

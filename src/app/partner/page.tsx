@@ -4,7 +4,7 @@ import { Alert, Badge, Button, Card } from '@/components/ui'
 import { requireDistributor, onboardingStep, canPurchasePackages } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { formatCurrency, formatDate, applicationStatusLabel } from '@/lib/utils'
-import { CONSUMER_SERUM_SKU } from '@/lib/constants'
+import { CONSUMER_SERUM_SKU, LOW_STOCK_THRESHOLD } from '@/lib/constants'
 
 export default async function PartnerDashboardPage() {
   const session = await requireDistributor()
@@ -107,16 +107,39 @@ export default async function PartnerDashboardPage() {
         <Card>
           <p className="text-xs uppercase tracking-wider text-pe-brown mb-1">Serum on hand</p>
           <p className="text-2xl font-serif">{inventory?.quantity_on_hand ?? 0} units</p>
+          {(inventory?.quantity_on_hand ?? 0) <= (inventory?.low_stock_threshold ?? LOW_STOCK_THRESHOLD) && (
+            <p className="text-xs text-amber-800 mt-1">Low stock — reorder packages soon</p>
+          )}
         </Card>
         <Card>
-          <p className="text-xs uppercase tracking-wider text-pe-brown mb-1">Intro pricing</p>
-          <p className="text-sm">
-            {distributor.intro_expires_at
-              ? `Until ${formatDate(distributor.intro_expires_at)}`
-              : 'Starts with first inventory order'}
-          </p>
+          <p className="text-xs uppercase tracking-wider text-pe-brown mb-1">Quick actions</p>
+          <div className="flex flex-col gap-2 mt-1">
+            <Link href="/partner/invoices/new" className="text-sm">
+              New invoice →
+            </Link>
+            <Link href="/partner/inventory" className="text-sm">
+              Inventory →
+            </Link>
+          </div>
         </Card>
       </div>
+
+      {distributor.application_status === 'approved' && (
+        <Card>
+          <h2 className="text-xl mb-2">Sell to customers</h2>
+          <p className="text-sm text-pe-brown mb-4">
+            Save customers, build invoices with live shipping rates, and email a payment link.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/partner/invoices/new">
+              <Button>Create invoice</Button>
+            </Link>
+            <Link href="/partner/customers">
+              <Button variant="secondary">Customers</Button>
+            </Link>
+          </div>
+        </Card>
+      )}
 
       {canPurchasePackages(distributor) && (
         <Card>
@@ -124,7 +147,9 @@ export default async function PartnerDashboardPage() {
           <p className="text-sm text-pe-brown mb-4">
             Select a Partner Starter or Growth package to stock Eve Origin Serum.
           </p>
-          <Link href="/partner/packages"><Button>Browse packages</Button></Link>
+          <Link href="/partner/packages">
+            <Button>Browse packages</Button>
+          </Link>
         </Card>
       )}
 

@@ -79,6 +79,49 @@ export async function POST(request: Request) {
         })
       }
     }
+
+    if (session.metadata?.type === 'customer_invoice' && session.metadata.invoice_id) {
+      const admin = createAdminClient()
+      const { data: invoice } = await admin
+        .from('invoices')
+        .select(
+          `*, distributors(business_name, ${DISTRIBUTOR_PROFILE}(email, full_name))`,
+        )
+        .eq('id', session.metadata.invoice_id)
+        .single()
+
+      if (invoice && invoice.status !== 'paid') {
+        await admin
+          .from('invoices')
+          .update({
+            status: 'paid',
+            paid_at: new Date().toISOString(),
+            stripe_payment_intent_id: String(session.payment_intent ?? ''),
+            stripe_checkout_session_id: session.id,
+          })
+          .eq('id', invoice.id)
+
+        const dist = invoice.distributors as {
+          business_name: string
+          profiles: { email: string; full_name: string }
+        } | null
+        const partnerEmail = dist?.profiles?.email
+        const partnerName = dist?.profiles?.full_name || 'Partner'
+
+        if (partnerEmail) {
+          await sendEmail({
+            to: partnerEmail,
+            subject: `Invoice ${invoice.invoice_number} paid`,
+            html: emailShell(
+              'Invoice paid',
+              `<p>Dear ${partnerName},</p>
+               <p>Your customer <strong>${invoice.customer_name_snapshot}</strong> paid invoice <strong>${invoice.invoice_number}</strong> for ${formatCurrency(invoice.total_cents)}.</p>
+               <p><a href="${appUrl()}/partner/invoices/${invoice.id}">View invoice</a></p>`,
+            ),
+          })
+        }
+      }
+    }
   }
 
   return NextResponse.json({ received: true })

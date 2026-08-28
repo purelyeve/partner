@@ -128,6 +128,95 @@ export interface DistributorInventory {
   low_stock_threshold: number
 }
 
+export interface Product {
+  id: string
+  sku: string
+  name: string
+  description: string
+  retail_cents: number
+  wholesale_cents: number
+  weight_oz: number
+  image_path: string
+  is_active: boolean
+  sort_order: number
+  created_at?: string
+}
+
+export type InvoiceCustomerType = 'direct_to_customer' | 'retail_wholesale'
+export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'expired' | 'cancelled'
+export type InvoiceDiscountType = 'none' | 'percent' | 'amount'
+
+export interface Customer {
+  id: string
+  distributor_id: string
+  full_name: string
+  email: string
+  phone: string
+  billing_line1: string
+  billing_line2: string
+  billing_city: string
+  billing_state: string
+  billing_postal_code: string
+  billing_country: string
+  shipping_same_as_billing: boolean
+  shipping_line1: string
+  shipping_line2: string
+  shipping_city: string
+  shipping_state: string
+  shipping_postal_code: string
+  shipping_country: string
+  resale_certificate_number: string
+  resale_document_path: string
+  resale_document_name: string
+  created_at: string
+}
+
+export interface Invoice {
+  id: string
+  invoice_number: string
+  distributor_id: string
+  customer_id: string
+  customer_type: InvoiceCustomerType
+  status: InvoiceStatus
+  public_token: string
+  customer_name_snapshot: string
+  customer_email_snapshot: string
+  customer_phone_snapshot: string
+  ship_to_line1: string
+  ship_to_line2: string
+  ship_to_city: string
+  ship_to_state: string
+  ship_to_postal_code: string
+  ship_to_country: string
+  discount_type: InvoiceDiscountType
+  discount_value: number
+  discount_cents: number
+  subtotal_cents: number
+  shipping_cents: number
+  tax_cents: number
+  total_cents: number
+  free_shipping: boolean
+  shipping_carrier: string
+  shipping_service: string
+  paid_at: string | null
+  sent_at: string | null
+  expires_at: string | null
+  tracking_code: string
+  created_at: string
+}
+
+export interface InvoiceLineItem {
+  id: string
+  invoice_id: string
+  product_id: string | null
+  sku_snapshot: string
+  name_snapshot: string
+  unit_price_cents: number
+  quantity: number
+  line_total_cents: number
+  sort_order: number
+}
+
 export interface ShippingRate {
   id: string
   carrier: string
