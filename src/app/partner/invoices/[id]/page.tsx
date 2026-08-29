@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Badge, Card } from '@/components/ui'
+import { Alert, Badge, Card } from '@/components/ui'
 import { requireDistributor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -15,11 +15,14 @@ import ResendInvoiceButton from '../resend-button'
 
 export default async function InvoiceDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ mailError?: string }>
 }) {
   const { distributor } = await requireDistributor()
   const { id } = await params
+  const { mailError } = await searchParams
   const supabase = await createClient()
 
   const { data: invoice } = await supabase
@@ -52,6 +55,13 @@ export default async function InvoiceDetailPage({
 
   return (
     <div className="space-y-6">
+      {mailError && (
+        <Alert variant="error">
+          Invoice was saved, but the customer email did not send: {mailError}. Use Email / resend
+          below after checking Resend (domain + API key on Vercel).
+        </Alert>
+      )}
+
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <Link href="/partner/invoices" className="text-sm">

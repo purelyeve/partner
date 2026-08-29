@@ -124,7 +124,42 @@ export async function POST(request: Request) {
               `<p>Dear ${partnerName},</p>
                <p>Your customer <strong>${invoice.customer_name_snapshot}</strong> paid invoice <strong>${invoice.invoice_number}</strong> for ${formatCurrency(invoice.total_cents)}.</p>
                <p>Inventory for the items on this invoice has been deducted from your on-hand stock.</p>
-               <p><a href="${appUrl()}/partner/invoices/${invoice.id}">View invoice</a></p>`,
+               <p style="margin:24px 0;">
+                 <a href="${appUrl()}/partner/invoices/${invoice.id}" style="background:#3a2108;color:#f5f0e8;padding:12px 20px;text-decoration:none;display:inline-block;">View invoice</a>
+               </p>
+               <p><a href="${appUrl()}/partner">Go to Partner dashboard</a></p>`,
+            ),
+          })
+        }
+
+        // Receipt to the customer
+        if (invoice.customer_email_snapshot) {
+          const seller =
+            invoice.seller_name_snapshot ||
+            dist?.business_name ||
+            partnerName
+          const contactBits = [
+            invoice.seller_email_snapshot
+              ? `Email: ${invoice.seller_email_snapshot}`
+              : null,
+            invoice.seller_phone_snapshot
+              ? `Phone: ${invoice.seller_phone_snapshot}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join('<br/>')
+
+          await sendEmail({
+            to: invoice.customer_email_snapshot,
+            subject: `Payment received — ${invoice.invoice_number}`,
+            fromName: seller ? `${seller} via Purely Eve` : undefined,
+            replyTo: invoice.seller_email_snapshot || undefined,
+            html: emailShell(
+              'Payment received',
+              `<p>Dear ${invoice.customer_name_snapshot},</p>
+               <p>Thank you. Your payment of <strong>${formatCurrency(invoice.total_cents)}</strong> for invoice <strong>${invoice.invoice_number}</strong> from ${seller} has been received.</p>
+               ${contactBits ? `<p>Questions? Contact your Partner:<br/>${contactBits}</p>` : ''}
+               <p style="margin:24px 0;"><a href="${appUrl()}/pay/${invoice.public_token}" style="background:#3a2108;color:#f5f0e8;padding:12px 20px;text-decoration:none;display:inline-block;">View receipt</a></p>`,
             ),
           })
         }

@@ -442,7 +442,7 @@ export async function partnerCreateInvoiceAction(
   if (linesErr) return { error: linesErr.message }
 
   if (sendNow) {
-    await sendInvoiceEmail({
+    const mailed = await sendInvoiceEmail({
       to: customer.email,
       customerName: customer.full_name,
       invoiceNumber: invoice.invoice_number,
@@ -452,6 +452,13 @@ export async function partnerCreateInvoiceAction(
       sellerEmail,
       sellerPhone,
     })
+    if (!mailed.ok) {
+      console.error('[invoice email]', mailed.error)
+      revalidatePath('/partner/invoices')
+      redirect(
+        `/partner/invoices/${invoice.id}?mailError=${encodeURIComponent(mailed.error || 'Email failed to send')}`,
+      )
+    }
   }
 
   revalidatePath('/partner/invoices')
@@ -467,7 +474,7 @@ async function sendInvoiceEmail(params: {
   sellerName: string
   sellerEmail: string
   sellerPhone: string
-}) {
+}): Promise<{ ok: boolean; error?: string }> {
   const payUrl = `${appUrl()}/pay/${params.token}`
   const contactBits = [
     params.sellerEmail ? `Email: ${params.sellerEmail}` : null,
@@ -476,10 +483,11 @@ async function sendInvoiceEmail(params: {
     .filter(Boolean)
     .join('<br/>')
 
-  await sendEmail({
+  // Keep From on the verified Purely Eve domain (deliverability). Reply-To = Partner.
+  return sendEmail({
     to: params.to,
     subject: `Invoice ${params.invoiceNumber} from ${params.sellerName}`,
-    fromName: params.sellerName,
+    fromName: `${params.sellerName} via Purely Eve`,
     replyTo: params.sellerEmail || undefined,
     html: emailShell(
       `Invoice ${params.invoiceNumber}`,
@@ -525,7 +533,7 @@ export async function partnerResendInvoiceAction(
     })
     .eq('id', invoice.id)
 
-  await sendInvoiceEmail({
+  const mailed = await sendInvoiceEmail({
     to: invoice.customer_email_snapshot,
     customerName: invoice.customer_name_snapshot,
     invoiceNumber: invoice.invoice_number,
@@ -536,9 +544,17 @@ export async function partnerResendInvoiceAction(
     sellerPhone: invoice.seller_phone_snapshot || ctx.profile.phone || '',
   })
 
+  if (!mailed.ok) {
+    return {
+      error: mailed.error
+        ? `Could not send email: ${mailed.error}`
+        : 'Could not send email. Check Resend domain settings and try again.',
+    }
+  }
+
   revalidatePath(`/partner/invoices/${invoice.id}`)
   revalidatePath('/partner/invoices')
-  return { success: true, message: 'Invoice resent.' }
+  return { success: true, message: `Invoice emailed to ${invoice.customer_email_snapshot}.` }
 }
 
 export async function createInvoiceCheckoutAction(token: string): Promise<ActionState & { url?: string }> {

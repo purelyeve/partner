@@ -46,7 +46,7 @@ export async function sendEmail(params: {
     resolvedFrom = `${safeName} <${emailOnly}>`
   }
 
-  const { error } = await client.emails.send({
+  const { data, error } = await client.emails.send({
     from: resolvedFrom,
     to: params.to,
     subject: params.subject,
@@ -54,7 +54,18 @@ export async function sendEmail(params: {
     ...(params.replyTo ? { replyTo: params.replyTo } : {}),
   })
 
-  if (error) return { ok: false, error: error.message }
+  if (error) {
+    console.error('[email] send failed', {
+      to: params.to,
+      subject: params.subject,
+      from: resolvedFrom,
+      replyTo: params.replyTo,
+      error: error.message,
+    })
+    return { ok: false, error: error.message }
+  }
+
+  console.info('[email] sent', { to: params.to, subject: params.subject, id: data?.id })
   return { ok: true }
 }
 

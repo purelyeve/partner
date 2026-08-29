@@ -90,10 +90,28 @@ export default function PayInvoiceClient({
         </div>
 
         {(paidFlag || invoice.status === 'paid') && (
-          <Alert variant="success">
-            Payment received{invoice.paid_at ? ` on ${formatDate(invoice.paid_at)}` : ''}. Thank
-            you.
-          </Alert>
+          <div className="space-y-3">
+            <Alert variant="success">
+              Payment received{invoice.paid_at ? ` on ${formatDate(invoice.paid_at)}` : ''}. Thank
+              you.
+            </Alert>
+            <div className="flex flex-wrap gap-3 justify-center">
+              {invoice.seller_email ? (
+                <a href={`mailto:${invoice.seller_email}`}>
+                  <Button type="button" variant="secondary">
+                    Email {invoice.seller_name}
+                  </Button>
+                </a>
+              ) : null}
+              <a href="https://purelyeve.com" target="_blank" rel="noopener noreferrer">
+                <Button type="button">Visit Purely Eve</Button>
+              </a>
+            </div>
+            <p className="text-center text-sm text-pe-brown">
+              You can close this page when you are finished. A receipt email is also sent to the
+              address on this invoice.
+            </p>
+          </div>
         )}
         {cancelledFlag && <Alert variant="info">Checkout was cancelled. You can try again below.</Alert>}
         {invoice.status === 'expired' && (
