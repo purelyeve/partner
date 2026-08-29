@@ -1,21 +1,22 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
-const PUBLIC_PATHS = [
+const PUBLIC_PREFIXES = [
   '/login',
   '/register',
   '/forgot-password',
   '/reset-password',
   '/auth/callback',
-  '/agreement/pdf',
+  '/agreement',
   '/pay',
+  '/api/webhooks',
 ]
 
 function isPublicPath(path: string) {
-  return PUBLIC_PATHS.some((p) => path === p || path.startsWith(`${p}/`))
+  if (path === '/') return true
+  return PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`))
 }
 
-/** Redirects must carry Supabase auth cookies or sessions get dropped → login loops. */
 function redirectWithCookies(url: URL, from: NextResponse) {
   const redirect = NextResponse.redirect(url)
   from.cookies.getAll().forEach((cookie) => {
@@ -24,11 +25,29 @@ function redirectWithCookies(url: URL, from: NextResponse) {
   return redirect
 }
 
-export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({ request })
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('middleware-auth-timeout')), ms)
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
 
+export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
-  if (path.startsWith('/api/webhooks')) return response
+
+  // Public routes: never call Supabase here — avoids Vercel MIDDLEWARE_INVOCATION_TIMEOUT.
+  if (isPublicPath(path)) {
+    return NextResponse.next()
+  }
+
+  let response = NextResponse.next({ request })
 
   try {
     const supabase = createServerClient(
@@ -50,70 +69,22 @@ export async function middleware(request: NextRequest) {
       },
     )
 
-    // Let login/register server actions finish without redirect gate interference.
-    const isServerAction = request.headers.has('next-action')
-    if (isPublicPath(path) && isServerAction) {
-      await supabase.auth.getUser()
-      return response
-    }
-
     const {
       data: { user },
-    } = await supabase.auth.getUser()
+    } = await withTimeout(supabase.auth.getUser(), 3000)
 
-    if (!user && !isPublicPath(path) && path !== '/') {
+    if (!user) {
       const url = request.nextUrl.clone()
       url.pathname = '/login'
       url.searchParams.set('next', path)
       return redirectWithCookies(url, response)
     }
 
-    if (user && path === '/login') {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
-
-      const url = request.nextUrl.clone()
-      url.pathname = profile?.role === 'admin' ? '/admin' : '/partner'
-      return redirectWithCookies(url, response)
-    }
-
-    // Only leave /register if they already have a distributor (or are admin).
-    if (user && path === '/register') {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
-
-      if (profile?.role === 'admin') {
-        const url = request.nextUrl.clone()
-        url.pathname = '/admin'
-        return redirectWithCookies(url, response)
-      }
-
-      const { data: distributor } = await supabase
-        .from('distributors')
-        .select('id')
-        .eq('profile_id', user.id)
-        .maybeSingle()
-
-      if (distributor) {
-        const url = request.nextUrl.clone()
-        url.pathname = '/partner'
-        return redirectWithCookies(url, response)
-      }
-    }
-
-    if (user && path.startsWith('/admin')) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
-
+    if (path.startsWith('/admin')) {
+      const { data: profile } = await withTimeout(
+        supabase.from('profiles').select('role').eq('id', user.id).single(),
+        3000,
+      )
       if (profile?.role !== 'admin') {
         const url = request.nextUrl.clone()
         url.pathname = '/partner'
@@ -122,15 +93,21 @@ export async function middleware(request: NextRequest) {
     }
   } catch (err) {
     console.error('[middleware]', err)
-    if (isPublicPath(path) || path === '/') return response
+    // On timeout/errors, fail open to login rather than 504 the whole site
     const url = request.nextUrl.clone()
     url.pathname = '/login'
-    return redirectWithCookies(url, response)
+    url.searchParams.set('next', path)
+    return NextResponse.redirect(url)
   }
 
   return response
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|brand/).*)'],
+  matcher: [
+    /*
+     * Skip static assets and Next internals so middleware never runs on them.
+     */
+    '/((?!_next/static|_next/image|favicon.ico|brand/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js)$).*)',
+  ],
 }
