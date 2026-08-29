@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { DISTRIBUTOR_PROFILE } from '@/lib/constants'
 import { appUrl, emailShell, notifyCompany, sendEmail } from '@/lib/email'
 import { formatCurrency } from '@/lib/utils'
+import { deductInventoryForPaidInvoice } from '@/lib/inventory'
 
 export async function POST(request: Request) {
   const body = await request.text()
@@ -101,6 +102,12 @@ export async function POST(request: Request) {
           })
           .eq('id', invoice.id)
 
+        try {
+          await deductInventoryForPaidInvoice(invoice.id)
+        } catch (err) {
+          console.error('[webhook] inventory deduct failed', err)
+        }
+
         const dist = invoice.distributors as {
           business_name: string
           profiles: { email: string; full_name: string }
@@ -116,6 +123,7 @@ export async function POST(request: Request) {
               'Invoice paid',
               `<p>Dear ${partnerName},</p>
                <p>Your customer <strong>${invoice.customer_name_snapshot}</strong> paid invoice <strong>${invoice.invoice_number}</strong> for ${formatCurrency(invoice.total_cents)}.</p>
+               <p>Inventory for the items on this invoice has been deducted from your on-hand stock.</p>
                <p><a href="${appUrl()}/partner/invoices/${invoice.id}">View invoice</a></p>`,
             ),
           })

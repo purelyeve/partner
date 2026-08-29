@@ -27,6 +27,8 @@ export async function sendEmail(params: {
   to: string | string[]
   subject: string
   html: string
+  replyTo?: string
+  fromName?: string
 }): Promise<{ ok: boolean; error?: string }> {
   const client = getResend()
   if (!client) {
@@ -34,11 +36,22 @@ export async function sendEmail(params: {
     return { ok: true }
   }
 
+  const defaultFrom = from()
+  let resolvedFrom = defaultFrom
+  if (params.fromName) {
+    const match = defaultFrom.match(/<([^>]+)>/)
+    const emailOnly = match?.[1] ?? defaultFrom.replace(/.*\s/, '').trim()
+    // Sanitize display name for email header
+    const safeName = params.fromName.replace(/[<>\n\r]/g, '').trim().slice(0, 78)
+    resolvedFrom = `${safeName} <${emailOnly}>`
+  }
+
   const { error } = await client.emails.send({
-    from: from(),
+    from: resolvedFrom,
     to: params.to,
     subject: params.subject,
     html: params.html,
+    ...(params.replyTo ? { replyTo: params.replyTo } : {}),
   })
 
   if (error) return { ok: false, error: error.message }

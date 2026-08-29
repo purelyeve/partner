@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 import type { ActionState } from '@/lib/action-state'
 import { logAudit } from '@/lib/admin'
 import { createClient } from '@/lib/supabase/server'
@@ -19,15 +20,36 @@ export async function adminSaveProductAction(
   const retailCents = Math.round(Number(formData.get('retailPrice') ?? 0) * 100)
   const wholesaleCents = Math.round(Number(formData.get('wholesalePrice') ?? 0) * 100)
   const weightOz = Number(formData.get('weightOz') ?? 0)
-  const imagePath = String(formData.get('imagePath') ?? '/brand/serum-temp.png').trim()
+  let imagePath = String(formData.get('imagePath') ?? '').trim()
   const sortOrder = Number(formData.get('sortOrder') ?? 0)
   const isActive = formData.get('isActive') === 'on'
+  const imageFile = formData.get('imageFile') as File | null
 
   if (!sku || !name) return { error: 'SKU and name are required.' }
   if (retailCents < 0 || wholesaleCents < 0) return { error: 'Prices must be valid.' }
   if (weightOz <= 0) return { error: 'Weight must be greater than zero.' }
 
   const admin = createAdminClient()
+
+  if (imageFile && imageFile.size > 0) {
+    if (imageFile.size > 5 * 1024 * 1024) return { error: 'Image must be 5 MB or smaller.' }
+    const ext = imageFile.name.split('.').pop()?.toLowerCase() || 'jpg'
+    if (!['jpg', 'jpeg', 'png', 'webp'].includes(ext)) {
+      return { error: 'Use a JPG, PNG, or WebP image.' }
+    }
+    const path = `products/${sku.toLowerCase()}-${Date.now()}.${ext}`
+    const buf = Buffer.from(await imageFile.arrayBuffer())
+    const { error: upErr } = await admin.storage.from('product-images').upload(path, buf, {
+      contentType: imageFile.type || 'image/jpeg',
+      upsert: true,
+    })
+    if (upErr) return { error: `Image upload failed: ${upErr.message}` }
+    const { data: pub } = admin.storage.from('product-images').getPublicUrl(path)
+    imagePath = pub.publicUrl
+  }
+
+  if (!imagePath) imagePath = '/brand/serum-temp.png'
+
   const payload = {
     sku,
     name,
@@ -35,7 +57,7 @@ export async function adminSaveProductAction(
     retail_cents: retailCents,
     wholesale_cents: wholesaleCents,
     weight_oz: weightOz,
-    image_path: imagePath || '/brand/serum-temp.png',
+    image_path: imagePath,
     sort_order: sortOrder,
     is_active: isActive,
   }
@@ -50,6 +72,31 @@ export async function adminSaveProductAction(
 
   revalidatePath('/admin/products')
   return { success: true, message: id ? 'Product updated.' : 'Product created.' }
+}
+
+export async function adminDeleteProductAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin()
+  const productId = String(formData.get('productId') ?? '')
+  if (!productId) return { error: 'Missing product.' }
+
+  const admin = createAdminClient()
+  const { data: product } = await admin.from('products').select('sku, name').eq('id', productId).single()
+  const { error } = await admin.from('products').delete().eq('id', productId)
+  if (error) return { error: error.message }
+
+  await logAudit({
+    actorId: null,
+    action: 'product_deleted',
+    entityType: 'products',
+    entityId: productId,
+    detail: { sku: product?.sku, name: product?.name },
+  })
+
+  revalidatePath('/admin/products')
+  redirect('/admin/products')
 }
 
 export async function adminToggleProductAssignmentAction(
@@ -148,4 +195,48 @@ export async function partnerAdjustInventoryAction(
   revalidatePath('/partner/inventory')
   revalidatePath('/partner')
   return { success: true, message: 'Inventory updated.' }
+}
+
+export async function partnerDeleteCustomerAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const customerId = String(formData.get('customerId') ?? '')
+  if (!customerId) return { error: 'Missing customer.' }
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not signed in' }
+
+  const { data: distributor } = await supabase
+    .from('distributors')
+    .select('id')
+    .eq('profile_id', user.id)
+    .single()
+  if (!distributor) return { error: 'Distributor not found' }
+
+  const { count } = await supabase
+    .from('invoices')
+    .select('id', { count: 'exact', head: true })
+    .eq('customer_id', customerId)
+    .eq('distributor_id', distributor.id)
+
+  if ((count ?? 0) > 0) {
+    return {
+      error: 'This customer has invoices. Cancel or keep them for records; deletion is blocked while invoices exist.',
+    }
+  }
+
+  const { error } = await supabase
+    .from('customers')
+    .delete()
+    .eq('id', customerId)
+    .eq('distributor_id', distributor.id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/partner/customers')
+  redirect('/partner/customers')
 }

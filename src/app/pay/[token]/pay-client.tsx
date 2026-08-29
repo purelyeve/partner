@@ -16,6 +16,8 @@ type PayInvoice = {
   customer_name_snapshot: string
   customer_type: string
   seller_name: string
+  seller_email: string
+  seller_phone: string
   ship_to_line1: string
   ship_to_line2: string
   ship_to_city: string
@@ -80,6 +82,11 @@ export default function PayInvoiceClient({
           <p className="text-xs uppercase tracking-wider text-pe-brown">Invoice</p>
           <h1 className="text-3xl">{invoice.invoice_number}</h1>
           <p className="text-sm text-pe-brown">from {invoice.seller_name}</p>
+          {(invoice.seller_email || invoice.seller_phone) && (
+            <p className="text-sm text-pe-brown">
+              {[invoice.seller_email, invoice.seller_phone].filter(Boolean).join(' · ')}
+            </p>
+          )}
         </div>
 
         {(paidFlag || invoice.status === 'paid') && (

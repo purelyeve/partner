@@ -67,6 +67,7 @@ export default async function AdminProductsPage() {
                           width={40}
                           height={40}
                           className="rounded-sm object-cover bg-pe-cream"
+                          unoptimized={p.image_path.startsWith('http')}
                         />
                       ) : null}
                       <span>{p.name}</span>

@@ -41,6 +41,7 @@ export default async function AdminDistributorsPage() {
               <tr>
                 <th className="p-3">Business</th>
                 <th className="p-3">Contact</th>
+                <th className="p-3">Phone</th>
                 <th className="p-3">Status</th>
                 <th className="p-3">Resale</th>
                 <th className="p-3">Applied</th>
@@ -64,6 +65,7 @@ export default async function AdminDistributorsPage() {
                       <br />
                       <span className="text-pe-brown">{p.email}</span>
                     </td>
+                    <td className="p-3">{p.phone || '—'}</td>
                     <td className="p-3">
                       <Badge tone={d.application_status === 'approved' ? 'success' : d.application_status === 'pending' ? 'warning' : 'error'}>
                         {applicationStatusLabel(d.application_status)}

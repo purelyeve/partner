@@ -2,16 +2,42 @@ import Link from 'next/link'
 import { Button } from '@/components/ui'
 import { requireDistributor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
+import { formatDate } from '@/lib/utils'
+import DeleteCustomerButton from './delete-customer-button'
 
-export default async function PartnerCustomersPage() {
+export default async function PartnerCustomersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; from?: string; to?: string }>
+}) {
   const { distributor } = await requireDistributor()
+  const { q, from, to } = await searchParams
   const supabase = await createClient()
 
-  const { data: customers } = await supabase
+  let query = supabase
     .from('customers')
-    .select('id, full_name, email, phone, billing_city, billing_state, resale_certificate_number')
+    .select(
+      'id, full_name, email, phone, billing_city, billing_state, resale_certificate_number, created_at',
+    )
     .eq('distributor_id', distributor.id)
     .order('full_name')
+
+  const term = (q ?? '').trim().replace(/[%_,]/g, ' ')
+  if (term) {
+    query = query.or(
+      `full_name.ilike.%${term}%,email.ilike.%${term}%,phone.ilike.%${term}%`,
+    )
+  }
+  if (from) {
+    query = query.gte('created_at', new Date(from).toISOString())
+  }
+  if (to) {
+    const end = new Date(to)
+    end.setHours(23, 59, 59, 999)
+    query = query.lte('created_at', end.toISOString())
+  }
+
+  const { data: customers } = await query
 
   return (
     <div className="space-y-6">
@@ -30,8 +56,39 @@ export default async function PartnerCustomersPage() {
         </Link>
       </div>
 
+      <form className="border border-pe-beige bg-white rounded-sm p-4 grid sm:grid-cols-4 gap-3 items-end">
+        <div className="sm:col-span-2">
+          <label htmlFor="q" className="text-sm text-pe-brown">
+            Search name, email, or phone
+          </label>
+          <input id="q" name="q" defaultValue={q ?? ''} placeholder="Search…" />
+        </div>
+        <div>
+          <label htmlFor="from" className="text-sm text-pe-brown">
+            Added from
+          </label>
+          <input id="from" name="from" type="date" defaultValue={from ?? ''} />
+        </div>
+        <div>
+          <label htmlFor="to" className="text-sm text-pe-brown">
+            Added to
+          </label>
+          <input id="to" name="to" type="date" defaultValue={to ?? ''} />
+        </div>
+        <div className="sm:col-span-4 flex flex-wrap gap-2">
+          <Button type="submit">Filter</Button>
+          {(q || from || to) && (
+            <Link href="/partner/customers">
+              <Button type="button" variant="secondary">
+                Clear
+              </Button>
+            </Link>
+          )}
+        </div>
+      </form>
+
       {!customers?.length ? (
-        <p className="text-sm text-pe-brown">No customers yet.</p>
+        <p className="text-sm text-pe-brown">No customers match.</p>
       ) : (
         <div className="border border-pe-beige bg-white rounded-sm overflow-x-auto">
           <table className="w-full text-sm">
@@ -39,8 +96,11 @@ export default async function PartnerCustomersPage() {
               <tr>
                 <th className="p-3">Name</th>
                 <th className="p-3">Email</th>
+                <th className="p-3">Phone</th>
                 <th className="p-3">Location</th>
                 <th className="p-3">Resale</th>
+                <th className="p-3">Added</th>
+                <th className="p-3" />
               </tr>
             </thead>
             <tbody>
@@ -52,10 +112,15 @@ export default async function PartnerCustomersPage() {
                     </Link>
                   </td>
                   <td className="p-3 text-pe-brown">{c.email}</td>
+                  <td className="p-3">{c.phone || '—'}</td>
                   <td className="p-3">
                     {[c.billing_city, c.billing_state].filter(Boolean).join(', ')}
                   </td>
                   <td className="p-3">{c.resale_certificate_number ? 'On file' : '—'}</td>
+                  <td className="p-3">{formatDate(c.created_at)}</td>
+                  <td className="p-3 text-right">
+                    <DeleteCustomerButton customerId={c.id} />
+                  </td>
                 </tr>
               ))}
             </tbody>

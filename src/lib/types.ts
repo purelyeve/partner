@@ -182,6 +182,9 @@ export interface Invoice {
   customer_name_snapshot: string
   customer_email_snapshot: string
   customer_phone_snapshot: string
+  seller_name_snapshot?: string
+  seller_email_snapshot?: string
+  seller_phone_snapshot?: string
   ship_to_line1: string
   ship_to_line2: string
   ship_to_city: string
@@ -202,6 +205,7 @@ export interface Invoice {
   sent_at: string | null
   expires_at: string | null
   tracking_code: string
+  inventory_deducted_at?: string | null
   created_at: string
 }
 

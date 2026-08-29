@@ -174,6 +174,13 @@ export default function RegisterPage() {
 
             <AgreementDocument />
 
+            <p className="text-sm">
+              <a href="/agreement/pdf" download>
+                Download Partner Terms & Wholesale Agreement (PDF)
+              </a>
+              <span className="text-pe-brown"> — save or print for your records.</span>
+            </p>
+
             <div className="flex gap-3 items-start">
               <input
                 id="agreeToTerms"

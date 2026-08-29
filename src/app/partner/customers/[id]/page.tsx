@@ -4,6 +4,7 @@ import { Button } from '@/components/ui'
 import { requireDistributor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import CustomerForm from '../customer-form'
+import DeleteCustomerButton from '../delete-customer-button'
 
 export default async function CustomerDetailPage({
   params,
@@ -35,6 +36,7 @@ export default async function CustomerDetailPage({
         <Link href={`/partner/invoices/new?customer=${customer.id}`}>
           <Button>Create invoice</Button>
         </Link>
+        <DeleteCustomerButton customerId={customer.id} />
       </div>
       <CustomerForm customer={customer} />
     </div>

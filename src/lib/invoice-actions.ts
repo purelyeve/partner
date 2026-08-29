@@ -376,11 +376,18 @@ export async function partnerCreateInvoiceAction(
     },
   })
 
+  if (taxResult.error && taxResult.source === 'none') {
+    return { error: taxResult.error }
+  }
+
   const taxCents = taxResult.taxCents
   const total = afterDiscount + shipCents + taxCents
   const invoiceNumber = generateInvoiceNumber()
   const now = new Date()
   const expiresAt = new Date(now.getTime() + INVOICE_EXPIRY_DAYS * 24 * 60 * 60 * 1000)
+  const sellerName = ctx.distributor.business_name || ctx.profile.full_name
+  const sellerEmail = ctx.profile.email
+  const sellerPhone = ctx.profile.phone || ''
 
   const { data: invoice, error: invErr } = await ctx.supabase
     .from('invoices')
@@ -393,6 +400,9 @@ export async function partnerCreateInvoiceAction(
       customer_name_snapshot: customer.full_name,
       customer_email_snapshot: customer.email,
       customer_phone_snapshot: customer.phone,
+      seller_name_snapshot: sellerName,
+      seller_email_snapshot: sellerEmail,
+      seller_phone_snapshot: sellerPhone,
       ship_to_line1: ship.line1,
       ship_to_line2: ship.line2,
       ship_to_city: ship.city,
@@ -438,7 +448,9 @@ export async function partnerCreateInvoiceAction(
       invoiceNumber: invoice.invoice_number,
       totalCents: total,
       token: invoice.public_token,
-      sellerName: ctx.distributor.business_name || ctx.profile.full_name,
+      sellerName,
+      sellerEmail,
+      sellerPhone,
     })
   }
 
@@ -453,17 +465,30 @@ async function sendInvoiceEmail(params: {
   totalCents: number
   token: string
   sellerName: string
+  sellerEmail: string
+  sellerPhone: string
 }) {
   const payUrl = `${appUrl()}/pay/${params.token}`
+  const contactBits = [
+    params.sellerEmail ? `Email: ${params.sellerEmail}` : null,
+    params.sellerPhone ? `Phone: ${params.sellerPhone}` : null,
+  ]
+    .filter(Boolean)
+    .join('<br/>')
+
   await sendEmail({
     to: params.to,
     subject: `Invoice ${params.invoiceNumber} from ${params.sellerName}`,
+    fromName: params.sellerName,
+    replyTo: params.sellerEmail || undefined,
     html: emailShell(
       `Invoice ${params.invoiceNumber}`,
       `<p>Dear ${params.customerName},</p>
-       <p>${params.sellerName} has sent you an invoice for <strong>${formatCurrency(params.totalCents)}</strong>.</p>
+       <p><strong>${params.sellerName}</strong> has sent you an invoice for <strong>${formatCurrency(params.totalCents)}</strong>.</p>
+       ${contactBits ? `<p>${contactBits}</p>` : ''}
        <p style="margin:24px 0;"><a href="${payUrl}" style="background:#3a2108;color:#f5f0e8;padding:12px 20px;text-decoration:none;display:inline-block;">View and pay invoice</a></p>
-       <p>Or open: <a href="${payUrl}">${payUrl}</a></p>`,
+       <p>Or open: <a href="${payUrl}">${payUrl}</a></p>
+       <p style="font-size:10pt;color:#794100;">Questions about this invoice? Reply to this email to reach ${params.sellerName}.</p>`,
     ),
   })
 }
@@ -506,7 +531,9 @@ export async function partnerResendInvoiceAction(
     invoiceNumber: invoice.invoice_number,
     totalCents: invoice.total_cents,
     token: invoice.public_token,
-    sellerName: ctx.distributor.business_name || ctx.profile.full_name,
+    sellerName: invoice.seller_name_snapshot || ctx.distributor.business_name || ctx.profile.full_name,
+    sellerEmail: invoice.seller_email_snapshot || ctx.profile.email,
+    sellerPhone: invoice.seller_phone_snapshot || ctx.profile.phone || '',
   })
 
   revalidatePath(`/partner/invoices/${invoice.id}`)

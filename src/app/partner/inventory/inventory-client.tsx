@@ -50,8 +50,9 @@ export default function InventoryClient({ rows }: { rows: Row[] }) {
     <div className="space-y-6">
       {low.length > 0 && (
         <Alert variant="warning">
-          Low stock on {low.map((r) => r.product.name).join(', ')} (threshold{' '}
-          {LOW_STOCK_THRESHOLD} units).
+          Low stock (at or below {LOW_STOCK_THRESHOLD} units):{' '}
+          {low.map((r) => `${r.product.name} (${r.quantity})`).join(', ')}. Order a package to
+          restock. You also receive an email when stock drops to this level after a customer pays.
         </Alert>
       )}
 
@@ -60,13 +61,14 @@ export default function InventoryClient({ rows }: { rows: Row[] }) {
           const isLow = quantity <= (threshold || LOW_STOCK_THRESHOLD)
           return (
             <Card key={product.id} className="flex flex-col sm:flex-row gap-4 sm:items-center">
-              {product.image_path ? (
+                  {product.image_path ? (
                 <Image
                   src={product.image_path}
                   alt=""
                   width={72}
                   height={72}
                   className="rounded-sm object-cover bg-pe-cream"
+                  unoptimized={product.image_path.startsWith('http')}
                 />
               ) : null}
               <div className="flex-1 space-y-1">

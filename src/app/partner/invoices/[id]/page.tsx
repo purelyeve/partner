@@ -82,6 +82,14 @@ export default async function InvoiceDetailPage({
 
       <div className="grid sm:grid-cols-2 gap-4">
         <Card className="space-y-2 text-sm">
+          <h2 className="text-lg">Sold by</h2>
+          <p className="font-medium">
+            {invoice.seller_name_snapshot || 'Partner'}
+          </p>
+          {invoice.seller_email_snapshot && <p>{invoice.seller_email_snapshot}</p>}
+          {invoice.seller_phone_snapshot && <p>{invoice.seller_phone_snapshot}</p>}
+        </Card>
+        <Card className="space-y-2 text-sm">
           <h2 className="text-lg">Bill to</h2>
           <p className="font-medium">{invoice.customer_name_snapshot}</p>
           <p>{invoice.customer_email_snapshot}</p>

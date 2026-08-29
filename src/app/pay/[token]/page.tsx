@@ -44,7 +44,10 @@ export default async function PayInvoicePage({
   } | null
 
   const sellerName =
-    dist?.business_name?.trim() || dist?.profiles?.full_name || 'Purely Eve Partner'
+    invoice.seller_name_snapshot?.trim() ||
+    dist?.business_name?.trim() ||
+    dist?.profiles?.full_name ||
+    'Purely Eve Partner'
 
   return (
     <PayInvoiceClient
@@ -57,6 +60,8 @@ export default async function PayInvoicePage({
         customer_name_snapshot: invoice.customer_name_snapshot,
         customer_type: invoice.customer_type,
         seller_name: sellerName,
+        seller_email: invoice.seller_email_snapshot || '',
+        seller_phone: invoice.seller_phone_snapshot || '',
         ship_to_line1: invoice.ship_to_line1,
         ship_to_line2: invoice.ship_to_line2,
         ship_to_city: invoice.ship_to_city,

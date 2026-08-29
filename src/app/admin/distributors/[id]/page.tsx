@@ -88,7 +88,10 @@ export default async function AdminDistributorDetailPage({
       <div>
         <Link href="/admin/distributors" className="text-sm">← All distributors</Link>
         <h1 className="text-3xl mt-2">{distributor.business_name?.trim() || 'Personal'}</h1>
-        <p className="text-pe-brown">{profile.full_name} · {profile.email}</p>
+        <p className="text-pe-brown">
+          {profile.full_name} · {profile.email}
+          {profile.phone ? ` · ${profile.phone}` : ''}
+        </p>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
@@ -96,6 +99,8 @@ export default async function AdminDistributorDetailPage({
           <h2 className="text-lg">Application</h2>
           <p>Status: <Badge>{applicationStatusLabel(distributor.application_status)}</Badge></p>
           <p>Submitted: {formatDate(distributor.application_submitted_at)}</p>
+          <p>Phone: {profile.phone || '—'}</p>
+          <p>Email: {profile.email}</p>
           <p>Tax ID: {maskTaxId(distributor.tax_id_last4)}</p>
           <p>Resale #: {distributor.resale_certificate_number || '—'} ({distributor.resale_state || '—'})</p>
           <p>Agreement signed: {distributor.agreement_signed_at ? formatDate(distributor.agreement_signed_at) : '—'}</p>
