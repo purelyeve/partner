@@ -50,6 +50,13 @@ export async function middleware(request: NextRequest) {
       },
     )
 
+    // Let login/register server actions finish without redirect gate interference.
+    const isServerAction = request.headers.has('next-action')
+    if (isPublicPath(path) && isServerAction) {
+      await supabase.auth.getUser()
+      return response
+    }
+
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -73,8 +80,7 @@ export async function middleware(request: NextRequest) {
       return redirectWithCookies(url, response)
     }
 
-    // Only bounce away from /register if they already have a distributor (or are admin).
-    // Otherwise requireDistributor() → /register and middleware → /partner loops forever.
+    // Only leave /register if they already have a distributor (or are admin).
     if (user && path === '/register') {
       const { data: profile } = await supabase
         .from('profiles')

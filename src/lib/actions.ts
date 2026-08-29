@@ -233,14 +233,18 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   const { error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) return { error: error.message }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', (await supabase.auth.getUser()).data.user!.id)
-    .single()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { error: 'Sign in failed. Please try again.' }
 
-  if (profile?.role === 'admin') redirect('/admin')
-  redirect('/partner')
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+
+  // Do not call redirect() here — useActionState pending never clears when redirect throws.
+  return {
+    success: true,
+    redirectTo: profile?.role === 'admin' ? '/admin' : '/partner',
+  }
 }
 
 export async function logoutAction() {
