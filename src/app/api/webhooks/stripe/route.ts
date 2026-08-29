@@ -152,7 +152,6 @@ export async function POST(request: Request) {
           await sendEmail({
             to: invoice.customer_email_snapshot,
             subject: `Payment received — ${invoice.invoice_number}`,
-            fromName: seller ? `${seller} via Purely Eve` : undefined,
             replyTo: invoice.seller_email_snapshot || undefined,
             html: emailShell(
               'Payment received',

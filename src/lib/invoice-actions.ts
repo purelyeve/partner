@@ -483,11 +483,10 @@ async function sendInvoiceEmail(params: {
     .filter(Boolean)
     .join('<br/>')
 
-  // Keep From on the verified Purely Eve domain (deliverability). Reply-To = Partner.
+  // Verified company From + Partner Reply-To (best deliverability).
   return sendEmail({
     to: params.to,
     subject: `Invoice ${params.invoiceNumber} from ${params.sellerName}`,
-    fromName: `${params.sellerName} via Purely Eve`,
     replyTo: params.sellerEmail || undefined,
     html: emailShell(
       `Invoice ${params.invoiceNumber}`,

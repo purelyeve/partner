@@ -1,6 +1,9 @@
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import { Resend } from 'resend'
 
 let resend: Resend | null = null
+let logoAttachment: { content: string; filename: string; contentId: string } | null | undefined
 
 function getResend(): Resend | null {
   if (!process.env.RESEND_API_KEY) return null
@@ -14,8 +17,19 @@ export function companyNotifyEmail(): string {
   return process.env.COMPANY_NOTIFY_EMAIL ?? 'contact@purelyeve.com'
 }
 
+/** Public site URL for links in emails (never localhost in production). */
 export function appUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '')
+  const configured = (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/$/, '')
+  if (configured && !/localhost|127\.0\.0\.1/i.test(configured)) {
+    return configured
+  }
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL.replace(/\/$/, '')}`
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL.replace(/\/$/, '')}`
+  }
+  return configured || 'http://localhost:3000'
 }
 
 export function firstNameFromFullName(fullName: string): string {
@@ -23,11 +37,45 @@ export function firstNameFromFullName(fullName: string): string {
   return part || 'Partner'
 }
 
+function getLogoAttachment() {
+  if (logoAttachment !== undefined) return logoAttachment
+  try {
+    const filePath = join(process.cwd(), 'public', 'brand', 'logo-black-on-white.png')
+    const content = readFileSync(filePath).toString('base64')
+    logoAttachment = {
+      content,
+      filename: 'purely-eve-logo.png',
+      contentId: 'pe-logo',
+    }
+  } catch (err) {
+    console.error('[email] could not load logo for inline attach', err)
+    logoAttachment = null
+  }
+  return logoAttachment
+}
+
+function htmlToText(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<\/h1>/gi, '\n\n')
+    .replace(/<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, '$2 ($1)')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 export async function sendEmail(params: {
   to: string | string[]
   subject: string
   html: string
   replyTo?: string
+  /** Optional display name; always keeps the verified Purely Eve domain address. */
   fromName?: string
 }): Promise<{ ok: boolean; error?: string }> {
   const client = getResend()
@@ -41,17 +89,37 @@ export async function sendEmail(params: {
   if (params.fromName) {
     const match = defaultFrom.match(/<([^>]+)>/)
     const emailOnly = match?.[1] ?? defaultFrom.replace(/.*\s/, '').trim()
-    // Sanitize display name for email header
     const safeName = params.fromName.replace(/[<>\n\r]/g, '').trim().slice(0, 78)
     resolvedFrom = `${safeName} <${emailOnly}>`
   }
+
+  const logo = getLogoAttachment()
+  const html = logo
+    ? params.html.replaceAll('cid:pe-logo-placeholder', 'cid:pe-logo')
+    : params.html.replace(
+        /<img[^>]*cid:pe-logo-placeholder[^>]*>/i,
+        '<p style="font-family:Georgia,serif;font-size:18pt;color:#3a2108;margin:0 0 24px;">Purely Eve</p>',
+      )
 
   const { data, error } = await client.emails.send({
     from: resolvedFrom,
     to: params.to,
     subject: params.subject,
-    html: params.html,
+    html,
+    text: htmlToText(html),
     ...(params.replyTo ? { replyTo: params.replyTo } : {}),
+    ...(logo
+      ? {
+          attachments: [
+            {
+              content: logo.content,
+              filename: logo.filename,
+              contentId: logo.contentId,
+              contentType: 'image/png',
+            },
+          ],
+        }
+      : {}),
   })
 
   if (error) {
@@ -81,14 +149,13 @@ export async function notifyCompany(params: {
 }
 
 export function emailShell(title: string, body: string): string {
-  const logoUrl = `${appUrl()}/brand/logo-black-on-white.png`
   const font = `Calibri,Carlito,'Segoe UI',Arial,sans-serif`
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>${title}</title></head>
 <body style="margin:0;padding:0;background:#f5f0e8;">
   <div style="font-family:${font};font-size:12pt;line-height:1.5;color:#1d201f;background:#f5f0e8;padding:32px;">
   <div style="max-width:560px;margin:0 auto;background:#fff;padding:32px;border:1px solid #e8dcc8;">
-    <img src="${logoUrl}" alt="Purely Eve" width="200" style="display:block;margin:0 0 24px;border:0;outline:none;text-decoration:none;width:200px;max-width:100%;height:auto;" />
+    <img src="cid:pe-logo-placeholder" alt="Purely Eve" width="200" height="auto" style="display:block;margin:0 0 24px;border:0;outline:none;text-decoration:none;width:200px;max-width:100%;height:auto;" />
     <p style="font-family:${font};color:#aa7800;letter-spacing:0.15em;font-size:10pt;text-transform:uppercase;margin:0 0 8px;">Purely Eve</p>
     <h1 style="font-family:${font};font-size:18pt;font-weight:bold;color:#3a2108;margin:0 0 24px;">${title}</h1>
     <div style="font-family:${font};font-size:12pt;line-height:1.5;">${body}</div>
