@@ -174,12 +174,19 @@ export default function RegisterPage() {
 
             <AgreementDocument />
 
-            <p className="text-sm">
-              <a href="/agreement/pdf" download>
-                Download Partner Terms & Wholesale Agreement (PDF)
+            <div className="border border-pe-gold/40 bg-pe-cream rounded-sm px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <p className="text-sm text-pe-charcoal">
+                Want a copy for your records? Download the full agreement as a PDF.
+              </p>
+              <a
+                href="/agreement/pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center px-5 py-2.5 text-sm tracking-wide rounded-sm bg-pe-gold text-white hover:bg-pe-brown no-underline shrink-0"
+              >
+                Download agreement (PDF)
               </a>
-              <span className="text-pe-brown"> — save or print for your records.</span>
-            </p>
+            </div>
 
             <div className="flex gap-3 items-start">
               <input
