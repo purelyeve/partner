@@ -96,13 +96,6 @@ export default function PayInvoiceClient({
               you.
             </Alert>
             <div className="flex flex-wrap gap-3 justify-center">
-              {invoice.seller_email ? (
-                <a href={`mailto:${invoice.seller_email}`}>
-                  <Button type="button" variant="secondary">
-                    Email {invoice.seller_name}
-                  </Button>
-                </a>
-              ) : null}
               <a href="https://purelyeve.com" target="_blank" rel="noopener noreferrer">
                 <Button type="button">Visit Purely Eve</Button>
               </a>
