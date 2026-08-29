@@ -71,7 +71,7 @@ export async function middleware(request: NextRequest) {
 
     const {
       data: { user },
-    } = await withTimeout(supabase.auth.getUser(), 3000)
+    } = await withTimeout(supabase.auth.getUser(), 8000)
 
     if (!user) {
       const url = request.nextUrl.clone()
@@ -94,11 +94,9 @@ export async function middleware(request: NextRequest) {
     }
   } catch (err) {
     console.error('[middleware]', err)
-    // On timeout/errors, fail open to login rather than 504 the whole site
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    url.searchParams.set('next', path)
-    return NextResponse.redirect(url)
+    // Fail open on timeout/network blips so pages still load.
+    // Partner/admin layouts enforce auth via requireSession / requireAdmin.
+    return response
   }
 
   return response
