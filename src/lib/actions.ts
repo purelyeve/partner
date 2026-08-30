@@ -257,7 +257,7 @@ export async function forgotPasswordAction(_prev: ActionState, formData: FormDat
   const email = String(formData.get('email') ?? '')
   const supabase = await createClient()
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/reset-password`,
+    redirectTo: `${appUrl()}/auth/callback?next=/reset-password`,
   })
   if (error) return { error: error.message }
   return { success: true, message: 'If that email is registered, a reset link has been sent.' }
@@ -268,9 +268,21 @@ export async function resetPasswordAction(_prev: ActionState, formData: FormData
   if (password.length < 8) return { error: 'Password must be at least 8 characters' }
 
   const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) {
+    return {
+      error:
+        'Your reset link expired or the session is missing. Request a new reset email and open the latest link.',
+    }
+  }
+
   const { error } = await supabase.auth.updateUser({ password })
   if (error) return { error: error.message }
-  redirect('/login?reset=1')
+
+  await supabase.auth.signOut()
+  return { success: true, redirectTo: '/login?reset=1' }
 }
 
 /** Dev-only: smoke-test Resend from the home page. */
