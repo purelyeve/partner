@@ -10,8 +10,8 @@ function getKey(): Buffer {
   return Buffer.from(hex, 'hex')
 }
 
-/** Encrypt Tax ID / SSN for storage. Returns iv:authTag:ciphertext (hex). */
-export function encryptTaxId(plaintext: string): string {
+/** Encrypt sensitive string for storage. Returns iv:authTag:ciphertext (hex). */
+export function encryptSecret(plaintext: string): string {
   const key = getKey()
   const iv = randomBytes(12)
   const cipher = createCipheriv(ALGORITHM, key, iv)
@@ -20,8 +20,8 @@ export function encryptTaxId(plaintext: string): string {
   return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted.toString('hex')}`
 }
 
-/** Decrypt for admin export only — never render full value in UI. */
-export function decryptTaxId(ciphertext: string): string {
+/** Decrypt stored secret — never render full value in Partner UI. */
+export function decryptSecret(ciphertext: string): string {
   const key = getKey()
   const [ivHex, authTagHex, dataHex] = ciphertext.split(':')
   if (!ivHex || !authTagHex || !dataHex) {
@@ -35,7 +35,21 @@ export function decryptTaxId(ciphertext: string): string {
   ]).toString('utf8')
 }
 
+export function encryptTaxId(plaintext: string): string {
+  return encryptSecret(plaintext)
+}
+
+export function decryptTaxId(ciphertext: string): string {
+  return decryptSecret(ciphertext)
+}
+
 export function taxIdLast4(value: string): string {
   const digits = value.replace(/\D/g, '')
   return digits.slice(-4)
+}
+
+/** Last 4 of an API key for display (e.g. EasyPost). */
+export function secretLast4(value: string): string {
+  const trimmed = value.trim()
+  return trimmed.slice(-4)
 }

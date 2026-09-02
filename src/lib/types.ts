@@ -52,6 +52,13 @@ export interface Distributor {
   resale_accepted_at: string | null
   intro_started_at: string | null
   intro_expires_at: string | null
+  stripe_account_id?: string | null
+  stripe_charges_enabled?: boolean
+  stripe_payouts_enabled?: boolean
+  stripe_details_submitted?: boolean
+  stripe_onboarding_complete?: boolean
+  easypost_api_key_ciphertext?: string | null
+  easypost_api_key_last4?: string | null
   created_at: string
   updated_at: string
 }
@@ -205,7 +212,18 @@ export interface Invoice {
   sent_at: string | null
   expires_at: string | null
   tracking_code: string
+  fulfilled_at?: string | null
+  label_url?: string
+  label_urls?: string[]
   inventory_deducted_at?: string | null
+  inventory_restored_at?: string | null
+  stripe_refund_id?: string | null
+  refunded_at?: string | null
+  cancel_reason?: string
+  easypost_shipment_id?: string
+  easypost_rate_id?: string
+  stripe_payment_intent_id?: string | null
+  stripe_checkout_session_id?: string | null
   created_at: string
 }
 

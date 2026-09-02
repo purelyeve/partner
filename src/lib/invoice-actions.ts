@@ -9,6 +9,8 @@ import { appUrl, emailShell, sendEmail } from '@/lib/email'
 import { getPackageShippingRates, parcelFromPackage } from '@/lib/easypost'
 import { calculateDestinationTaxCents } from '@/lib/tax'
 import { getStripe } from '@/lib/stripe'
+import { isConnectReady } from '@/lib/stripe-connect'
+import { decryptSecret } from '@/lib/crypto'
 import {
   computeDiscountCents,
   generateInvoiceNumber,
@@ -224,7 +226,30 @@ export async function getInvoiceShippingRatesAction(formData: FormData) {
         country: ctx.distributor.fulfillment_country || 'US',
       }
 
+  let partnerApiKey: string | undefined
+  if (ctx.distributor.easypost_api_key_ciphertext) {
+    try {
+      partnerApiKey = decryptSecret(ctx.distributor.easypost_api_key_ciphertext)
+    } catch {
+      return {
+        error:
+          'Could not read your EasyPost API key. Re-save it under Payments, then try rates again.',
+      }
+    }
+  }
+  if (!partnerApiKey) {
+    return {
+      rates: [
+        { id: 'free', carrier: 'FREE', service: 'Free shipping', rateCents: 0, deliveryDays: null },
+      ],
+      shipmentId: '',
+      warning:
+        'Only free shipping is available until you add your EasyPost API key under Payments (required for paid rates and customer labels).',
+    }
+  }
+
   const result = await getPackageShippingRates({
+    apiKey: partnerApiKey,
     from,
     to: {
       name: ship.name,
@@ -267,6 +292,24 @@ export async function partnerCreateInvoiceAction(
 ): Promise<ActionState> {
   const ctx = await requirePartnerDistributor()
   if ('error' in ctx) return { error: ctx.error }
+
+  // Free shipping does not need EasyPost at invoice time; paid shipping + labels do.
+  const freeShippingEarly =
+    String(formData.get('rateId') ?? '') === 'free' ||
+    String(formData.get('carrier') ?? '') === 'FREE'
+
+  if (!isConnectReady(ctx.distributor)) {
+    return {
+      error:
+        'Connect your bank under Payments (Stripe Connect) before creating invoices customers can pay.',
+    }
+  }
+  if (!freeShippingEarly && !ctx.distributor.easypost_api_key_ciphertext) {
+    return {
+      error:
+        'Add your EasyPost API key under Payments before creating invoices with paid shipping.',
+    }
+  }
 
   const customerId = String(formData.get('customerId') ?? '')
   const customerType = String(formData.get('customerType') ?? '') as InvoiceCustomerType
@@ -581,42 +624,71 @@ export async function createInvoiceCheckoutAction(token: string): Promise<Action
 
   const stripe = getStripe()
 
-  // Charge the invoice total as one line to respect discounts cleanly
-  const session = await stripe.checkout.sessions.create({
-    mode: 'payment',
-    success_url: `${appUrl()}/pay/${token}?paid=1`,
-    cancel_url: `${appUrl()}/pay/${token}?cancelled=1`,
-    customer_email: invoice.customer_email_snapshot,
-    metadata: {
-      type: 'customer_invoice',
-      invoice_id: invoice.id,
-      invoice_number: invoice.invoice_number,
-    },
-    line_items: [
-      {
-        price_data: {
-          currency: 'usd',
-          product_data: {
-            name: `Invoice ${invoice.invoice_number}`,
-            description: [
-              ...(lines ?? []).map((l) => `${l.quantity}× ${l.name_snapshot}`),
-              invoice.shipping_cents > 0
-                ? `Shipping ${invoice.shipping_carrier} ${invoice.shipping_service}`
-                : invoice.free_shipping
-                  ? 'Free shipping'
-                  : null,
-              invoice.tax_cents > 0 ? `Tax ${formatCurrency(invoice.tax_cents)}` : null,
-              invoice.discount_cents > 0 ? `Discount −${formatCurrency(invoice.discount_cents)}` : null,
-            ]
-              .filter(Boolean)
-              .join(' · '),
-          },
-          unit_amount: invoice.total_cents,
-        },
-        quantity: 1,
+  const { data: distributor } = await admin
+    .from('distributors')
+    .select(
+      'stripe_account_id, stripe_charges_enabled, stripe_onboarding_complete, business_name',
+    )
+    .eq('id', invoice.distributor_id)
+    .single()
+
+  if (!distributor || !isConnectReady(distributor)) {
+    return {
+      error:
+        'This Partner has not finished Stripe Connect setup yet. Ask them to connect their bank under Payments in the Partner portal.',
+    }
+  }
+
+  // Direct charge on the Partner's connected account (Partner absorbs processing fee).
+  const session = await stripe.checkout.sessions.create(
+    {
+      mode: 'payment',
+      success_url: `${appUrl()}/pay/${token}?paid=1`,
+      cancel_url: `${appUrl()}/pay/${token}?cancelled=1`,
+      customer_email: invoice.customer_email_snapshot,
+      metadata: {
+        type: 'customer_invoice',
+        invoice_id: invoice.id,
+        invoice_number: invoice.invoice_number,
+        distributor_id: invoice.distributor_id,
       },
-    ],
-  })
+      payment_intent_data: {
+        metadata: {
+          type: 'customer_invoice',
+          invoice_id: invoice.id,
+          invoice_number: invoice.invoice_number,
+          distributor_id: invoice.distributor_id,
+        },
+      },
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: `Invoice ${invoice.invoice_number}`,
+              description: [
+                ...(lines ?? []).map((l) => `${l.quantity}× ${l.name_snapshot}`),
+                invoice.shipping_cents > 0
+                  ? `Shipping ${invoice.shipping_carrier} ${invoice.shipping_service}`
+                  : invoice.free_shipping
+                    ? 'Free shipping'
+                    : null,
+                invoice.tax_cents > 0 ? `Tax ${formatCurrency(invoice.tax_cents)}` : null,
+                invoice.discount_cents > 0
+                  ? `Discount −${formatCurrency(invoice.discount_cents)}`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(' · '),
+            },
+            unit_amount: invoice.total_cents,
+          },
+          quantity: 1,
+        },
+      ],
+    },
+    { stripeAccount: distributor.stripe_account_id! },
+  )
 
   await admin
     .from('invoices')

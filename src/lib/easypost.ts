@@ -131,8 +131,10 @@ export async function getPackageShippingRates(params: {
   to: EasyPostAddress
   parcel: ParcelSpec
   from?: EasyPostAddress
+  /** When set (Partner customer rates), bill that EasyPost account instead of company. */
+  apiKey?: string
 }): Promise<ShippingRatesResult> {
-  const apiKey = process.env.EASYPOST_API_KEY
+  const apiKey = params.apiKey || process.env.EASYPOST_API_KEY
   if (!apiKey) {
     return {
       ok: true,
@@ -681,3 +683,149 @@ export async function buyCompanyLabelsForOrder(params: {
     note: notes.length ? notes.join(' ') : undefined,
   }
 }
+
+/**
+ * Buy a customer shipping label on the Partner's EasyPost account (Partner pays postage).
+ * Ship-from is the Partner fulfillment address.
+ */
+export async function buyPartnerLabel(params: {
+  apiKey: string
+  from: EasyPostAddress
+  to: EasyPostAddress
+  parcel: Omit<ParcelSpec, 'boxCount'>
+  carrier: string
+  service: string
+  existingShipmentId?: string
+  existingRateId?: string
+}): Promise<{ ok: true; label: PurchasedLabel } | { ok: false; error: string }> {
+  const apiKey = params.apiKey.trim()
+  if (!apiKey) {
+    return {
+      ok: false,
+      error:
+        'Add your EasyPost API key in Payments / Profile so customer labels bill your EasyPost account.',
+    }
+  }
+
+  const fromPayload = {
+    name: params.from.name || '',
+    company: params.from.company || params.from.name || '',
+    phone: params.from.phone || '',
+    street1: params.from.street1,
+    street2: params.from.street2 || '',
+    city: params.from.city,
+    state: params.from.state,
+    zip: params.from.zip,
+    country: params.from.country || 'US',
+  }
+
+  if (!fromPayload.street1 || !fromPayload.city || !fromPayload.state || !fromPayload.zip) {
+    return {
+      ok: false,
+      error: 'Partner ship-from address is incomplete. Update your fulfillment address in Profile.',
+    }
+  }
+
+  if (params.existingShipmentId && params.existingRateId) {
+    const checkout = await tryBuyCheckoutRate({
+      apiKey,
+      shipmentId: params.existingShipmentId,
+      rateId: params.existingRateId,
+    })
+    if (checkout.ok) {
+      return { ok: true, label: checkout.label }
+    }
+    if (checkout.error && !checkout.rateExpired) {
+      return { ok: false, error: checkout.error }
+    }
+  }
+
+  const headers = easypostAuthHeaders(apiKey)
+  const shipmentRes = await fetch(`${EASYPOST_API}/shipments`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      shipment: {
+        from_address: fromPayload,
+        to_address: {
+          name: params.to.name,
+          street1: params.to.street1,
+          street2: params.to.street2 ?? '',
+          city: params.to.city,
+          state: params.to.state,
+          zip: params.to.zip,
+          country: params.to.country ?? 'US',
+        },
+        parcel: parcelPayload({
+          weightOz: params.parcel.weightOz,
+          lengthIn: params.parcel.lengthIn,
+          widthIn: params.parcel.widthIn,
+          heightIn: params.parcel.heightIn,
+          boxCount: 1,
+        }),
+      },
+    }),
+  })
+
+  if (!shipmentRes.ok) {
+    const detail = await shipmentRes.text()
+    console.error('[easypost] partner shipment error', detail)
+    return {
+      ok: false,
+      error:
+        parseEasyPostError(detail) ||
+        'EasyPost could not create a shipment. Confirm your EasyPost API key, carriers, and ship-from address.',
+    }
+  }
+
+  const shipment = (await shipmentRes.json()) as {
+    id: string
+    rates: Array<{ id: string; carrier: string; service: string; rate: string }>
+  }
+
+  const allowed = filterAllowedRates(
+    (shipment.rates ?? []).map((r) => ({
+      id: r.id,
+      carrier: r.carrier,
+      service: r.service,
+      rateCents: Math.round(parseFloat(r.rate) * 100),
+      deliveryDays: null,
+    })),
+  )
+
+  if (!allowed.length) {
+    return {
+      ok: false,
+      error: noRatesError(shipment.rates?.length ?? 0, params.carrier, params.service),
+    }
+  }
+
+  const wantCarrier = params.carrier.trim()
+  const wantService = normalizeServiceName(params.service)
+  let rate =
+    allowed.find(
+      (r) =>
+        ratesMatch(r.carrier, r.service, wantCarrier, wantService) ||
+        (r.carrier.toLowerCase() === wantCarrier.toLowerCase() &&
+          /priority/i.test(wantService) === /priority/i.test(r.service)),
+    ) || allowed[0]
+
+  // Map filtered rate ids back to EasyPost rate objects
+  const epRate = (shipment.rates ?? []).find((r) => r.id === rate.id)
+  if (!epRate) {
+    return { ok: false, error: 'Could not match an EasyPost rate for this shipment.' }
+  }
+
+  const usedFallback = !ratesMatch(epRate.carrier, epRate.service, params.carrier, params.service)
+  const bought = await buyShipmentRate(apiKey, shipment.id, epRate)
+  if (!bought.ok) return bought
+
+  return {
+    ok: true,
+    label: {
+      ...bought.label,
+      usedFallback,
+    },
+  }
+}
+

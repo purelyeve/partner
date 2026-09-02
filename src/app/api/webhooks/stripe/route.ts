@@ -5,7 +5,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { DISTRIBUTOR_PROFILE } from '@/lib/constants'
 import { appUrl, emailShell, notifyCompany, sendEmail } from '@/lib/email'
 import { formatCurrency } from '@/lib/utils'
-import { deductInventoryForPaidInvoice } from '@/lib/inventory'
+import {
+  deductInventoryForPaidInvoice,
+  restoreInventoryForRefundedInvoice,
+} from '@/lib/inventory'
+import { syncConnectAccountStatus } from '@/lib/stripe-connect'
+import type Stripe from 'stripe'
 
 export async function POST(request: Request) {
   const body = await request.text()
@@ -16,7 +21,7 @@ export async function POST(request: Request) {
   }
 
   const stripe = getStripe()
-  let event
+  let event: Stripe.Event
   try {
     event = stripe.webhooks.constructEvent(
       body,
@@ -28,8 +33,58 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 400 })
   }
 
+  if (event.type === 'account.updated') {
+    const account = event.data.object as Stripe.Account
+    try {
+      await syncConnectAccountStatus(account.id)
+    } catch (err) {
+      console.error('[webhook] account.updated sync failed', err)
+    }
+    return NextResponse.json({ received: true })
+  }
+
+  if (event.type === 'charge.refunded') {
+    const charge = event.data.object as Stripe.Charge
+    const paymentIntentId =
+      typeof charge.payment_intent === 'string'
+        ? charge.payment_intent
+        : charge.payment_intent?.id
+    if (paymentIntentId && charge.refunded) {
+      const admin = createAdminClient()
+      const { data: invoice } = await admin
+        .from('invoices')
+        .select('id, status, refunded_at, inventory_restored_at')
+        .eq('stripe_payment_intent_id', paymentIntentId)
+        .maybeSingle()
+
+      if (invoice && invoice.status === 'paid' && !invoice.refunded_at) {
+        await admin
+          .from('invoices')
+          .update({
+            status: 'cancelled',
+            refunded_at: new Date().toISOString(),
+            cancel_reason: 'Refunded via Stripe (webhook)',
+          })
+          .eq('id', invoice.id)
+
+        try {
+          await restoreInventoryForRefundedInvoice(invoice.id)
+        } catch (err) {
+          console.error('[webhook] restock on refund failed', err)
+        }
+      } else if (invoice && invoice.refunded_at && !invoice.inventory_restored_at) {
+        try {
+          await restoreInventoryForRefundedInvoice(invoice.id)
+        } catch (err) {
+          console.error('[webhook] restock retry failed', err)
+        }
+      }
+    }
+    return NextResponse.json({ received: true })
+  }
+
   if (event.type === 'checkout.session.completed') {
-    const session = event.data.object
+    const session = event.data.object as Stripe.Checkout.Session
     if (session.metadata?.type === 'package_order' && session.metadata.order_id) {
       const admin = createAdminClient()
       const { data: order } = await admin
@@ -91,7 +146,7 @@ export async function POST(request: Request) {
         .eq('id', session.metadata.invoice_id)
         .single()
 
-      if (invoice && invoice.status !== 'paid') {
+      if (invoice && invoice.status !== 'paid' && invoice.status !== 'cancelled') {
         await admin
           .from('invoices')
           .update({
@@ -118,21 +173,21 @@ export async function POST(request: Request) {
         if (partnerEmail) {
           await sendEmail({
             to: partnerEmail,
-            subject: `Invoice ${invoice.invoice_number} paid`,
+            subject: `Invoice ${invoice.invoice_number} paid — ready to ship`,
             html: emailShell(
               'Invoice paid',
               `<p>Dear ${partnerName},</p>
                <p>Your customer <strong>${invoice.customer_name_snapshot}</strong> paid invoice <strong>${invoice.invoice_number}</strong> for ${formatCurrency(invoice.total_cents)}.</p>
                <p>Inventory for the items on this invoice has been deducted from your on-hand stock.</p>
+               <p>Next step: buy a shipping label and mark the order shipped.</p>
                <p style="margin:24px 0;">
-                 <a href="${appUrl()}/partner/invoices/${invoice.id}" style="background:#3a2108;color:#f5f0e8;padding:12px 20px;text-decoration:none;display:inline-block;">View invoice</a>
+                 <a href="${appUrl()}/partner/orders/${invoice.id}" style="background:#3a2108;color:#f5f0e8;padding:12px 20px;text-decoration:none;display:inline-block;">Open fulfillment</a>
                </p>
-               <p><a href="${appUrl()}/partner">Go to Partner dashboard</a></p>`,
+               <p><a href="${appUrl()}/partner/orders">Pending orders</a> · <a href="${appUrl()}/partner">Dashboard</a></p>`,
             ),
           })
         }
 
-        // Receipt to the customer
         if (invoice.customer_email_snapshot) {
           const seller =
             invoice.seller_name_snapshot ||

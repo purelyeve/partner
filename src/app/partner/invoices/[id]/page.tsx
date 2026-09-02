@@ -12,6 +12,7 @@ import {
 } from '@/lib/utils'
 import { appUrl } from '@/lib/email'
 import ResendInvoiceButton from '../resend-button'
+import CancelUnpaidButton from '../cancel-unpaid-button'
 
 export default async function InvoiceDetailPage({
   params,
@@ -89,6 +90,20 @@ export default async function InvoiceDetailPage({
         </div>
         {canResend && <ResendInvoiceButton invoiceId={invoice.id} />}
       </div>
+
+      {invoice.status === 'paid' && (
+        <Alert variant="success">
+          Paid.{' '}
+          <Link href={`/partner/orders/${invoice.id}`}>Open fulfillment / refund →</Link>
+        </Alert>
+      )}
+
+      {invoice.status === 'cancelled' && invoice.refunded_at && (
+        <Alert variant="info">
+          Refunded / cancelled. Stock restored if it had been deducted.{' '}
+          <Link href={`/partner/orders/${invoice.id}`}>View order →</Link>
+        </Alert>
+      )}
 
       <div className="grid sm:grid-cols-2 gap-4">
         <Card className="space-y-2 text-sm">
@@ -183,11 +198,12 @@ export default async function InvoiceDetailPage({
       </Card>
 
       {invoice.status !== 'paid' && invoice.status !== 'cancelled' && (
-        <Card className="text-sm space-y-1">
+        <Card className="text-sm space-y-3">
           <p className="font-medium">Customer payment link</p>
           <a href={payUrl} className="break-all">
             {payUrl}
           </a>
+          <CancelUnpaidButton invoiceId={invoice.id} />
         </Card>
       )}
     </div>

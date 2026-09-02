@@ -30,6 +30,21 @@ export default async function PartnerDashboardPage() {
     .order('created_at', { ascending: false })
     .limit(5)
 
+  const { count: pendingFulfillment } = await supabase
+    .from('invoices')
+    .select('id', { count: 'exact', head: true })
+    .eq('distributor_id', distributor.id)
+    .eq('status', 'paid')
+    .is('fulfilled_at', null)
+    .is('refunded_at', null)
+
+  const connectReady = Boolean(
+    distributor.stripe_account_id &&
+      distributor.stripe_charges_enabled &&
+      distributor.stripe_onboarding_complete,
+  )
+  const hasEasyPost = Boolean(distributor.easypost_api_key_last4)
+
   const { data: latestResale } = await supabase
     .from('distributor_documents')
     .select('id, status')
@@ -97,6 +112,36 @@ export default async function PartnerDashboardPage() {
         </Alert>
       )}
 
+      {distributor.application_status === 'approved' && !connectReady && (
+        <Alert variant="warning">
+          Connect your bank with Stripe before customers can pay invoices. Funds go to your account;
+          processing fees come out of your proceeds.
+          <div className="mt-3">
+            <Link href="/partner/payments"><Button>Set up payments</Button></Link>
+          </div>
+        </Alert>
+      )}
+
+      {distributor.application_status === 'approved' && connectReady && !hasEasyPost && (
+        <Alert variant="info">
+          Add your EasyPost API key so you can quote shipping and buy customer labels (postage bills
+          your EasyPost account).
+          <div className="mt-3">
+            <Link href="/partner/payments"><Button variant="secondary">Add EasyPost key</Button></Link>
+          </div>
+        </Alert>
+      )}
+
+      {(pendingFulfillment ?? 0) > 0 && (
+        <Alert variant="info">
+          You have {pendingFulfillment} paid order{pendingFulfillment === 1 ? '' : 's'} waiting to
+          ship.
+          <div className="mt-3">
+            <Link href="/partner/orders?filter=pending"><Button>Open fulfillment queue</Button></Link>
+          </div>
+        </Alert>
+      )}
+
       <div className="grid sm:grid-cols-3 gap-4">
         <Card>
           <p className="text-xs uppercase tracking-wider text-pe-brown mb-1">Status</p>
@@ -116,6 +161,12 @@ export default async function PartnerDashboardPage() {
           <div className="flex flex-col gap-2 mt-1">
             <Link href="/partner/invoices/new" className="text-sm">
               New invoice →
+            </Link>
+            <Link href="/partner/orders" className="text-sm">
+              Orders →
+            </Link>
+            <Link href="/partner/payments" className="text-sm">
+              Payments →
             </Link>
             <Link href="/partner/inventory" className="text-sm">
               Inventory →
