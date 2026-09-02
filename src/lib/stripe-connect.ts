@@ -14,7 +14,15 @@ export function isConnectReady(distributor: Pick<
   )
 }
 
-/** Create Express connected account if missing; return Stripe Account Link URL. */
+function stripeErrorMessage(err: unknown, fallback: string): string {
+  if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
+    return (err as { message: string }).message
+  }
+  if (err instanceof Error) return err.message
+  return fallback
+}
+
+/** Create connected account via Accounts v2; return Stripe-hosted onboarding URL. */
 export async function createConnectOnboardingLink(params: {
   distributorId: string
   email: string
@@ -36,38 +44,68 @@ export async function createConnectOnboardingLink(params: {
 
   if (!accountId) {
     try {
-      const account = await stripe.accounts.create({
-        type: 'express',
-        country: 'US',
-        email: params.email,
-        capabilities: {
-          card_payments: { requested: true },
-          transfers: { requested: true },
+      const displayName =
+        params.businessName || dist.business_name || params.email.split('@')[0] || 'Partner'
+
+      // Accounts v2 — required for new Connect platforms (v1 create is blocked by default).
+      const account = await stripe.v2.core.accounts.create({
+        contact_email: params.email,
+        display_name: displayName,
+        identity: {
+          country: 'us',
         },
-        business_profile: {
-          name: params.businessName || dist.business_name || undefined,
-          product_description: 'Purely Eve Partner — skincare resale',
+        // Matches Purely Eve Connect platform setup (embedded / no full Express dashboard).
+        dashboard: 'none',
+        defaults: {
+          responsibilities: {
+            fees_collector: 'stripe',
+            losses_collector: 'stripe',
+          },
+        },
+        configuration: {
+          merchant: {
+            capabilities: {
+              card_payments: { requested: true },
+              stripe_balance: {
+                payouts: { requested: true },
+              },
+            },
+          },
         },
         metadata: {
           distributor_id: params.distributorId,
         },
+        include: ['configuration.merchant', 'defaults', 'identity'],
       })
+
       accountId = account.id
+
+      // v1 retrieve still works for status flags used by the portal.
+      let chargesEnabled = false
+      let payoutsEnabled = false
+      let detailsSubmitted = false
+      try {
+        const v1 = await stripe.accounts.retrieve(accountId)
+        chargesEnabled = v1.charges_enabled ?? false
+        payoutsEnabled = v1.payouts_enabled ?? false
+        detailsSubmitted = v1.details_submitted ?? false
+      } catch {
+        // New account — flags stay false until onboarding completes.
+      }
+
       await admin
         .from('distributors')
         .update({
           stripe_account_id: accountId,
-          stripe_charges_enabled: account.charges_enabled ?? false,
-          stripe_payouts_enabled: account.payouts_enabled ?? false,
-          stripe_details_submitted: account.details_submitted ?? false,
-          stripe_onboarding_complete: Boolean(
-            account.charges_enabled && account.details_submitted,
-          ),
+          stripe_charges_enabled: chargesEnabled,
+          stripe_payouts_enabled: payoutsEnabled,
+          stripe_details_submitted: detailsSubmitted,
+          stripe_onboarding_complete: Boolean(chargesEnabled && detailsSubmitted),
         })
         .eq('id', params.distributorId)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Could not create Stripe account'
-      console.error('[connect] accounts.create', message)
+      const message = stripeErrorMessage(err, 'Could not create Stripe account')
+      console.error('[connect] v2 accounts.create', message)
       return { error: message }
     }
   }
@@ -76,6 +114,24 @@ export async function createConnectOnboardingLink(params: {
   const returnUrl = `${appUrl()}${params.returnPath ?? '/partner/payments?return=1'}`
 
   try {
+    // Prefer v2 account links when available; fall back to v1 Account Links.
+    try {
+      const v2Link = await stripe.v2.core.accountLinks.create({
+        account: accountId,
+        use_case: {
+          type: 'account_onboarding',
+          account_onboarding: {
+            configurations: ['merchant'],
+            refresh_url: refreshUrl,
+            return_url: returnUrl,
+          },
+        },
+      })
+      if (v2Link.url) return { url: v2Link.url }
+    } catch (v2Err) {
+      console.warn('[connect] v2 accountLinks failed, trying v1', stripeErrorMessage(v2Err, ''))
+    }
+
     const link = await stripe.accountLinks.create({
       account: accountId,
       refresh_url: refreshUrl,
@@ -84,13 +140,16 @@ export async function createConnectOnboardingLink(params: {
     })
     return { url: link.url }
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Could not start Stripe onboarding'
+    const message = stripeErrorMessage(err, 'Could not start Stripe onboarding')
     console.error('[connect] accountLinks.create', message)
     return { error: message }
   }
 }
 
-/** Stripe Express login link so Partner can edit bank / view payouts. */
+/**
+ * Open Stripe so Partner can edit bank / view payouts.
+ * Tries Express login link; if dashboard is "none", falls back to hosted onboarding/update link.
+ */
 export async function createConnectDashboardLink(
   stripeAccountId: string,
 ): Promise<{ url: string } | { error: string }> {
@@ -98,10 +157,39 @@ export async function createConnectDashboardLink(
   try {
     const link = await stripe.accounts.createLoginLink(stripeAccountId)
     return { url: link.url }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Could not open Stripe dashboard'
-    console.error('[connect] createLoginLink', message)
-    return { error: message }
+  } catch {
+    // dashboard: none accounts have no Express login link — use hosted update flow.
+    const refreshUrl = `${appUrl()}/partner/payments?refresh=1`
+    const returnUrl = `${appUrl()}/partner/payments?return=1`
+    try {
+      const v2Link = await stripe.v2.core.accountLinks.create({
+        account: stripeAccountId,
+        use_case: {
+          type: 'account_onboarding',
+          account_onboarding: {
+            configurations: ['merchant'],
+            refresh_url: refreshUrl,
+            return_url: returnUrl,
+          },
+        },
+      })
+      if (v2Link.url) return { url: v2Link.url }
+    } catch (v2Err) {
+      console.warn('[connect] v2 update link failed', stripeErrorMessage(v2Err, ''))
+    }
+    try {
+      const link = await stripe.accountLinks.create({
+        account: stripeAccountId,
+        refresh_url: refreshUrl,
+        return_url: returnUrl,
+        type: 'account_onboarding',
+      })
+      return { url: link.url }
+    } catch (err) {
+      const message = stripeErrorMessage(err, 'Could not open Stripe dashboard')
+      console.error('[connect] dashboard link', message)
+      return { error: message }
+    }
   }
 }
 
