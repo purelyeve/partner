@@ -66,9 +66,6 @@ export async function createConnectOnboardingLink(params: {
           merchant: {
             capabilities: {
               card_payments: { requested: true },
-              stripe_balance: {
-                payouts: { requested: true },
-              },
             },
           },
         },
