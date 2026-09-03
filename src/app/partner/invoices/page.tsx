@@ -8,6 +8,7 @@ import {
   formatDate,
   invoiceStatusLabel,
 } from '@/lib/utils'
+import DeleteInvoiceButton from './delete-invoice-button'
 
 export default async function PartnerInvoicesPage() {
   const { distributor } = await requireDistributor()
@@ -52,12 +53,15 @@ export default async function PartnerInvoicesPage() {
                 <th className="p-3">Fulfillment</th>
                 <th className="p-3">Total</th>
                 <th className="p-3">Created</th>
+                <th className="p-3"></th>
               </tr>
             </thead>
             <tbody>
               {invoices.map((inv) => {
                 const isPaid = inv.status === 'paid' && !inv.refunded_at
                 const fulfilled = Boolean(inv.fulfilled_at)
+                const deletable =
+                  (inv.status === 'cancelled' || inv.status === 'expired') && !inv.paid_at
                 return (
                   <tr key={inv.id} className="border-t border-pe-beige">
                     <td className="p-3">
@@ -99,6 +103,9 @@ export default async function PartnerInvoicesPage() {
                     </td>
                     <td className="p-3">{formatCurrency(inv.total_cents)}</td>
                     <td className="p-3">{formatDate(inv.created_at)}</td>
+                    <td className="p-3 text-right">
+                      {deletable && <DeleteInvoiceButton invoiceId={inv.id} compact />}
+                    </td>
                   </tr>
                 )
               })}

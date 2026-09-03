@@ -10,7 +10,7 @@ import { getPackageShippingRates, parcelFromPackage } from '@/lib/easypost'
 import { calculateDestinationTaxCents } from '@/lib/tax'
 import { getStripe } from '@/lib/stripe'
 import { isConnectReady } from '@/lib/stripe-connect'
-import { resolvePartnerEasyPostKey } from '@/lib/easypost-partner'
+import { resolveCustomerShippingKey } from '@/lib/easypost-partner'
 import {
   computeDiscountCents,
   generateInvoiceNumber,
@@ -226,8 +226,7 @@ export async function getInvoiceShippingRatesAction(formData: FormData) {
         country: ctx.distributor.fulfillment_country || 'US',
       }
 
-  let partnerApiKey: string | undefined
-  const resolved = resolvePartnerEasyPostKey(ctx.distributor)
+  const resolved = resolveCustomerShippingKey()
   if ('error' in resolved) {
     return {
       rates: [
@@ -237,10 +236,9 @@ export async function getInvoiceShippingRatesAction(formData: FormData) {
       warning: resolved.error,
     }
   }
-  partnerApiKey = resolved.apiKey
 
   const result = await getPackageShippingRates({
-    apiKey: partnerApiKey,
+    apiKey: resolved.apiKey,
     from,
     to: {
       name: ship.name,
@@ -275,6 +273,66 @@ export async function getInvoiceShippingRatesAction(formData: FormData) {
     ],
     shipmentId: result.shipmentId,
   }
+}
+
+/**
+ * Stock leaves inventory when an invoice is paid, so an invoice must also
+ * reserve against units already promised on unpaid invoices. Otherwise the same
+ * last unit can be sold twice.
+ */
+async function checkStockAvailable(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  distributorId: string,
+  lineRows: Array<{ sku_snapshot: string; name_snapshot: string; quantity: number }>,
+): Promise<string | null> {
+  const skus = [...new Set(lineRows.map((r) => r.sku_snapshot))]
+  if (!skus.length) return null
+
+  const { data: stockRows } = await supabase
+    .from('distributor_inventory')
+    .select('sku, quantity_on_hand')
+    .eq('distributor_id', distributorId)
+    .in('sku', skus)
+
+  const onHand = new Map((stockRows ?? []).map((r) => [r.sku, r.quantity_on_hand ?? 0]))
+
+  const { data: openInvoices } = await supabase
+    .from('invoices')
+    .select('id')
+    .eq('distributor_id', distributorId)
+    .in('status', ['draft', 'sent'])
+
+  const committed = new Map<string, number>()
+  const openIds = (openInvoices ?? []).map((i) => i.id)
+  if (openIds.length) {
+    const { data: openLines } = await supabase
+      .from('invoice_line_items')
+      .select('sku_snapshot, quantity')
+      .in('invoice_id', openIds)
+      .in('sku_snapshot', skus)
+
+    for (const line of openLines ?? []) {
+      committed.set(
+        line.sku_snapshot,
+        (committed.get(line.sku_snapshot) ?? 0) + (line.quantity ?? 0),
+      )
+    }
+  }
+
+  for (const row of lineRows) {
+    const reserved = committed.get(row.sku_snapshot) ?? 0
+    const available = (onHand.get(row.sku_snapshot) ?? 0) - reserved
+    if (row.quantity > available) {
+      const held =
+        reserved > 0 ? ` (${reserved} already promised on unpaid invoices)` : ''
+      return `Not enough stock for ${row.name_snapshot}. This invoice needs ${row.quantity} but you have ${Math.max(
+        0,
+        available,
+      )} available${held}. Order an inventory package to restock.`
+    }
+  }
+
+  return null
 }
 
 export async function partnerCreateInvoiceAction(
@@ -379,6 +437,9 @@ export async function partnerCreateInvoiceAction(
       sort_order: sort++,
     })
   }
+
+  const stockError = await checkStockAvailable(ctx.supabase, ctx.distributor.id, lineRows)
+  if (stockError) return { error: stockError }
 
   const discountCents = computeDiscountCents(subtotal, discountType, discountValue)
   const afterDiscount = Math.max(0, subtotal - discountCents)
@@ -619,6 +680,12 @@ export async function createInvoiceCheckoutAction(token: string): Promise<Action
     }
   }
 
+  // Shipping the customer paid is routed to the company so the company EasyPost
+  // account can be charged for the label. Everything else settles to the Partner.
+  const shippingFeeCents = invoice.free_shipping
+    ? 0
+    : Math.max(0, Math.min(invoice.shipping_cents ?? 0, invoice.total_cents - 1))
+
   // Direct charge on the Partner's connected account (Partner absorbs processing fee).
   const session = await stripe.checkout.sessions.create(
     {
@@ -633,11 +700,13 @@ export async function createInvoiceCheckoutAction(token: string): Promise<Action
         distributor_id: invoice.distributor_id,
       },
       payment_intent_data: {
+        ...(shippingFeeCents > 0 ? { application_fee_amount: shippingFeeCents } : {}),
         metadata: {
           type: 'customer_invoice',
           invoice_id: invoice.id,
           invoice_number: invoice.invoice_number,
           distributor_id: invoice.distributor_id,
+          shipping_routed_cents: String(shippingFeeCents),
         },
       },
       line_items: [

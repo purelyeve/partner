@@ -45,9 +45,6 @@ export default async function PartnerFulfillmentDetailPage({
   const pendingShip =
     invoice.status === 'paid' && !invoice.fulfilled_at && !invoice.refunded_at
   const shipped = Boolean(invoice.fulfilled_at) && !invoice.refunded_at
-  const easypostReady = Boolean(
-    distributor.easypost_use_company || distributor.easypost_api_key_last4,
-  )
 
   return (
     <div className="space-y-6">
@@ -82,10 +79,11 @@ export default async function PartnerFulfillmentDetailPage({
         </div>
       </div>
 
-      {!easypostReady && pendingShip && (
-        <Alert variant="warning">
-          Enable EasyPost shipping under <Link href="/partner/payments">Payments</Link> before
-          buying a customer label.
+      {pendingShip && (
+        <Alert variant="info">
+          The customer already paid{' '}
+          {invoice.free_shipping ? 'no shipping on this order' : 'the shipping on this order'}, so
+          buying the label below costs you nothing.
         </Alert>
       )}
 

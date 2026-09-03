@@ -21,12 +21,16 @@ export default async function PartnerDashboardPage() {
     .eq('sku', CONSUMER_SERUM_SKU)
     .maybeSingle()
 
+  // Abandoned checkouts leave draft/awaiting_payment rows behind, which used to
+  // crowd out real orders. Show orders that were actually paid, unshipped first.
   const { data: orders } = await supabase
     .from('package_orders')
     .select(
       'id, order_number, name_snapshot, status, total_cents, created_at, tracking_code, shipping_carrier, shipping_service, fulfilled_at',
     )
     .eq('distributor_id', distributor.id)
+    .in('status', ['paid', 'fulfilled'])
+    .order('fulfilled_at', { ascending: true, nullsFirst: true })
     .order('created_at', { ascending: false })
     .limit(5)
 
@@ -42,9 +46,6 @@ export default async function PartnerDashboardPage() {
     distributor.stripe_account_id &&
       distributor.stripe_charges_enabled &&
       distributor.stripe_onboarding_complete,
-  )
-  const hasEasyPost = Boolean(
-    distributor.easypost_use_company || distributor.easypost_api_key_last4,
   )
 
   const { data: latestResale } = await supabase
@@ -124,15 +125,6 @@ export default async function PartnerDashboardPage() {
         </Alert>
       )}
 
-      {distributor.application_status === 'approved' && connectReady && !hasEasyPost && (
-        <Alert variant="info">
-          Add your EasyPost shipping under Payments so you can quote shipping and buy customer labels.
-          <div className="mt-3">
-            <Link href="/partner/payments"><Button variant="secondary">Enable EasyPost shipping</Button></Link>
-          </div>
-        </Alert>
-      )}
-
       {(pendingFulfillment ?? 0) > 0 && (
         <Alert variant="info">
           You have {pendingFulfillment} paid order{pendingFulfillment === 1 ? '' : 's'} waiting to
@@ -206,7 +198,10 @@ export default async function PartnerDashboardPage() {
       )}
 
       <section>
-        <h2 className="text-xl mb-4">Recent inventory orders</h2>
+        <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+          <h2 className="text-xl">Recent inventory orders</h2>
+          <p className="text-xs text-pe-brown">Awaiting shipment first, then most recent.</p>
+        </div>
         {orders && orders.length > 0 ? (
           <div className="border border-pe-beige bg-white rounded-sm overflow-hidden">
             <table className="w-full text-sm">
@@ -248,7 +243,7 @@ export default async function PartnerDashboardPage() {
             </table>
           </div>
         ) : (
-          <p className="text-sm text-pe-brown">No orders yet.</p>
+          <p className="text-sm text-pe-brown">No paid inventory orders yet.</p>
         )}
       </section>
     </div>

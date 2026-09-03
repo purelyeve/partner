@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { appUrl, emailShell, sendEmail } from '@/lib/email'
 import { buyPartnerLabel, parcelFromPackage } from '@/lib/easypost'
-import { resolvePartnerEasyPostKey } from '@/lib/easypost-partner'
+import { resolveCustomerShippingKey } from '@/lib/easypost-partner'
 import { getStripe } from '@/lib/stripe'
 import { restoreInventoryForRefundedInvoice } from '@/lib/inventory'
 import { formatCurrency } from '@/lib/utils'
@@ -82,7 +82,7 @@ export async function partnerBuyLabelAndFulfillAction(invoiceId: string) {
     return { error: 'This order was refunded and cannot be shipped.' }
   }
 
-  const resolved = resolvePartnerEasyPostKey(ctx.distributor)
+  const resolved = resolveCustomerShippingKey()
   if ('error' in resolved) {
     return { error: resolved.error }
   }
@@ -241,12 +241,17 @@ export async function partnerRefundPaidInvoiceAction(formData: FormData) {
     return { error: 'Stripe Connect account missing. Open Payments to reconnect.' }
   }
 
+  // Shipping was routed to the company as an application fee. Give it back only
+  // when no label was bought; once postage is spent the company stays at a wash.
+  const returnShippingFee = !invoice.fulfilled_at
+
   const stripe = getStripe()
   try {
     const refund = await stripe.refunds.create(
       {
         payment_intent: invoice.stripe_payment_intent_id,
         reason: 'requested_by_customer',
+        refund_application_fee: returnShippingFee,
         metadata: {
           invoice_id: invoice.id,
           invoice_number: invoice.invoice_number,
@@ -338,6 +343,46 @@ export async function partnerCancelUnpaidInvoiceAction(invoiceId: string) {
   revalidatePath(`/partner/invoices/${invoiceId}`)
   revalidatePath('/partner/fulfillments')
   return { success: true, message: 'Invoice cancelled.' }
+}
+
+/**
+ * Delete a cancelled or expired invoice that was never paid. Invoices that took
+ * a real payment stay on record even after a refund.
+ */
+export async function partnerDeleteInvoiceAction(invoiceId: string) {
+  const ctx = await requirePartner()
+  if ('error' in ctx) return { error: ctx.error }
+
+  const { data: invoice } = await ctx.supabase
+    .from('invoices')
+    .select('id, status, paid_at')
+    .eq('id', invoiceId)
+    .eq('distributor_id', ctx.distributor.id)
+    .single()
+
+  if (!invoice) return { error: 'Invoice not found.' }
+  if (invoice.status !== 'cancelled' && invoice.status !== 'expired') {
+    return { error: 'Only cancelled or expired invoices can be deleted.' }
+  }
+  if (invoice.paid_at) {
+    return {
+      error:
+        'This invoice was paid, so it stays on record for your sales and tax reporting even though it was refunded.',
+    }
+  }
+
+  const { error } = await ctx.supabase
+    .from('invoices')
+    .delete()
+    .eq('id', invoiceId)
+    .eq('distributor_id', ctx.distributor.id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/partner/invoices')
+  revalidatePath('/partner/customers')
+  revalidatePath('/partner')
+  return { success: true, message: 'Invoice deleted.' }
 }
 
 /** Admin helper: network view uses service role when needed. */

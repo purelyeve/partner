@@ -73,8 +73,9 @@ export default async function PayoutReportPage() {
         </Link>
         <h1 className="text-3xl mt-2">Payout &amp; fee breakdown</h1>
         <p className="text-sm text-pe-brown mt-1">
-          Paid customer invoices plus Stripe balance activity (fees, payouts). Shipping on the
-          invoice is what the customer paid; postage you buy at label time is separate on EasyPost.
+          Paid customer invoices plus Stripe balance activity (fees, payouts). The shipping your
+          customer paid goes to Purely Eve to cover the postage on your label, so your share of each
+          invoice is the product and tax total, less Stripe&apos;s processing fee.
         </p>
       </div>
 
@@ -89,9 +90,10 @@ export default async function PayoutReportPage() {
                 <tr>
                   <th className="p-2">Invoice</th>
                   <th className="p-2">Customer</th>
-                  <th className="p-2">Total</th>
-                  <th className="p-2">Ship (customer)</th>
+                  <th className="p-2">Customer paid</th>
+                  <th className="p-2">Shipping (covers postage)</th>
                   <th className="p-2">Tax</th>
+                  <th className="p-2">Your share</th>
                   <th className="p-2">Paid</th>
                 </tr>
               </thead>
@@ -103,8 +105,11 @@ export default async function PayoutReportPage() {
                     </td>
                     <td className="p-2">{inv.customer_name_snapshot}</td>
                     <td className="p-2">{formatCurrency(inv.total_cents)}</td>
-                    <td className="p-2">{formatCurrency(inv.shipping_cents)}</td>
+                    <td className="p-2">−{formatCurrency(inv.shipping_cents)}</td>
                     <td className="p-2">{formatCurrency(inv.tax_cents)}</td>
+                    <td className="p-2">
+                      {formatCurrency(inv.total_cents - inv.shipping_cents)}
+                    </td>
                     <td className="p-2">
                       {inv.paid_at ? new Date(inv.paid_at).toLocaleDateString() : '—'}
                     </td>

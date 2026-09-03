@@ -6,7 +6,6 @@ import { Alert, Button, Card } from '@/components/ui'
 import {
   openConnectDashboardAction,
   refreshConnectStatusAction,
-  enablePartnerEasyPostAction,
   startConnectOnboardingAction,
 } from '@/lib/connect-actions'
 import { formatCurrency } from '@/lib/utils'
@@ -28,8 +27,6 @@ export default function PaymentsClient({
   hasAccount,
   balance,
   payouts,
-  easypostLast4,
-  easypostReady,
   returnedFromStripe,
   refreshedFromStripe,
 }: {
@@ -40,8 +37,6 @@ export default function PaymentsClient({
   hasAccount: boolean
   balance: { availableCents: number; pendingCents: number; currency: string } | null
   payouts: PayoutRow[]
-  easypostLast4: string | null
-  easypostReady: boolean
   returnedFromStripe?: boolean
   refreshedFromStripe?: boolean
 }) {
@@ -75,8 +70,8 @@ export default function PaymentsClient({
         </Link>
         <h1 className="text-3xl mt-2">Payments & shipping</h1>
         <p className="text-sm text-pe-brown">
-          Connect your bank for customer payments, and your EasyPost account for customer shipping
-          labels.
+          Connect your bank once. Customer payments land in your Stripe account and shipping labels
+          are ready to buy from the portal, with nothing else to set up.
         </p>
       </div>
 
@@ -95,7 +90,8 @@ export default function PaymentsClient({
         <h2 className="text-lg">Stripe Connect — customer payments</h2>
         <p className="text-sm text-pe-brown">
           Customer invoice payments go to your connected Stripe account. Stripe&apos;s processing fee
-          comes out of your proceeds. Purely Eve does not receive those customer payments.
+          comes out of your proceeds. The shipping the customer paid is passed to Purely Eve, which
+          covers the postage for your label, so your payout is the product and tax total.
         </p>
         <ul className="text-sm space-y-1">
           <li>
@@ -202,34 +198,17 @@ export default function PaymentsClient({
         </Card>
       )}
 
-      <Card className="space-y-4">
-        <h2 className="text-lg">EasyPost — customer shipping</h2>
+      <Card className="space-y-3">
+        <h2 className="text-lg">Customer shipping</h2>
         <p className="text-sm text-pe-brown">
-          Enable shipping from this portal (no EasyPost website visit). Carrier rates and labels are
-          set up for your Partner account automatically.
+          Nothing to set up. USPS and UPS rates appear when you build an invoice, and the customer
+          pays that amount at checkout. When the order is paid, buy and print the label from{' '}
+          <Link href="/partner/fulfillments" className="underline">
+            Fulfillments
+          </Link>
+          . The postage is already covered by the shipping the customer paid, so there is no bill to
+          you and no shipping account to open.
         </p>
-        {easypostReady ? (
-          <Alert variant="success">
-            EasyPost shipping is enabled
-            {easypostLast4 && easypostLast4 !== 'CO'
-              ? ` (key …${easypostLast4})`
-              : ' (company-linked)'}.
-            USPS/UPS options appear when you create invoices.
-          </Alert>
-        ) : (
-          <Alert variant="warning">
-            Shipping is not enabled yet. Without this, invoices only show Free shipping.
-          </Alert>
-        )}
-        {!easypostReady && (
-          <Button
-            type="button"
-            disabled={pending}
-            onClick={() => run(() => enablePartnerEasyPostAction())}
-          >
-            {pending ? 'Enabling…' : 'Enable EasyPost shipping'}
-          </Button>
-        )}
       </Card>
     </div>
   )

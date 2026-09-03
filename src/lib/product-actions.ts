@@ -231,6 +231,21 @@ export async function partnerDeleteCustomerAction(
     }
   }
 
+  // Invoices that took a real payment stay on record for sales and tax history.
+  const { count: settled } = await supabase
+    .from('invoices')
+    .select('id', { count: 'exact', head: true })
+    .eq('customer_id', customerId)
+    .eq('distributor_id', distributor.id)
+    .not('paid_at', 'is', null)
+
+  if ((settled ?? 0) > 0) {
+    return {
+      error:
+        'This customer has a paid or refunded invoice, which stays on record for your sales and tax reporting. The customer cannot be deleted.',
+    }
+  }
+
   // Cancelled / expired invoices: remove so FK allows customer delete.
   const { error: invErr } = await supabase
     .from('invoices')
@@ -240,6 +255,19 @@ export async function partnerDeleteCustomerAction(
     .in('status', ['cancelled', 'expired'])
 
   if (invErr) return { error: invErr.message }
+
+  const { count: stillBlocking } = await supabase
+    .from('invoices')
+    .select('id', { count: 'exact', head: true })
+    .eq('customer_id', customerId)
+    .eq('distributor_id', distributor.id)
+
+  if ((stillBlocking ?? 0) > 0) {
+    return {
+      error:
+        'Could not clear the cancelled invoices for this customer. Delete them from the Invoices tab, then try again.',
+    }
+  }
 
   const { error } = await supabase
     .from('customers')

@@ -13,6 +13,7 @@ import {
 import { appUrl } from '@/lib/email'
 import ResendInvoiceButton from '../resend-button'
 import CancelUnpaidButton from '../cancel-unpaid-button'
+import DeleteInvoiceButton from '../delete-invoice-button'
 
 export default async function InvoiceDetailPage({
   params,
@@ -204,6 +205,16 @@ export default async function InvoiceDetailPage({
             {payUrl}
           </a>
           <CancelUnpaidButton invoiceId={invoice.id} />
+        </Card>
+      )}
+
+      {(invoice.status === 'cancelled' || invoice.status === 'expired') && !invoice.paid_at && (
+        <Card className="text-sm space-y-3">
+          <p className="font-medium">Remove this invoice</p>
+          <p className="text-pe-brown">
+            This invoice was never paid, so it can be deleted permanently.
+          </p>
+          <DeleteInvoiceButton invoiceId={invoice.id} redirectTo="/partner/invoices" />
         </Card>
       )}
     </div>
