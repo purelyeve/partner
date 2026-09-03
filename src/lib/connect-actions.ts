@@ -8,6 +8,10 @@ import {
   syncConnectAccountStatus,
 } from '@/lib/stripe-connect'
 import { encryptSecret, secretLast4 } from '@/lib/crypto'
+import {
+  createEasyPostChildUser,
+  pickEasyPostKeyForEnv,
+} from '@/lib/easypost-partner'
 
 async function requirePartner() {
   const supabase = await createClient()
@@ -131,4 +135,104 @@ export async function savePartnerEasyPostKeyAction(formData: FormData) {
   revalidatePath('/partner/payments')
   revalidatePath('/partner/profile')
   return { success: true, message: 'EasyPost API key saved. Customer labels will bill this account.' }
+}
+
+/**
+ * One-click EasyPost setup from the portal (no EasyPost website visit).
+ * Tries child user under company parent; falls back to company key for rates/labels.
+ */
+export async function enablePartnerEasyPostAction() {
+  const ctx = await requirePartner()
+  if ('error' in ctx) return { error: ctx.error }
+
+  if (ctx.distributor.application_status !== 'approved') {
+    return { error: 'Your Partner account must be approved first.' }
+  }
+
+  // Already set up
+  if (ctx.distributor.easypost_api_key_last4 || ctx.distributor.easypost_use_company) {
+    return { success: true, message: 'EasyPost shipping is already enabled.' }
+  }
+
+  const name =
+    ctx.distributor.business_name ||
+    ctx.profile.full_name ||
+    ctx.profile.email ||
+    `Partner ${ctx.distributor.id.slice(0, 8)}`
+
+  const child = await createEasyPostChildUser({ name: `PE Partner — ${name}` })
+
+  if (child.ok) {
+    const key = pickEasyPostKeyForEnv(child)
+    if (!key) {
+      // Child created but no key returned — use company fallback
+      const { error } = await ctx.supabase
+        .from('distributors')
+        .update({
+          easypost_user_id: child.userId,
+          easypost_use_company: true,
+          easypost_api_key_last4: 'CO',
+        })
+        .eq('id', ctx.distributor.id)
+      if (error) return { error: error.message }
+      revalidatePath('/partner/payments')
+      return {
+        success: true,
+        message:
+          'EasyPost shipping enabled (company account). USPS/UPS rates are available on invoices.',
+      }
+    }
+
+    let ciphertext: string
+    try {
+      ciphertext = encryptSecret(key)
+    } catch {
+      return { error: 'Server encryption is not configured.' }
+    }
+
+    const { error } = await ctx.supabase
+      .from('distributors')
+      .update({
+        easypost_user_id: child.userId,
+        easypost_api_key_ciphertext: ciphertext,
+        easypost_api_key_last4: secretLast4(key),
+        easypost_use_company: false,
+      })
+      .eq('id', ctx.distributor.id)
+
+    if (error) return { error: error.message }
+    revalidatePath('/partner/payments')
+    revalidatePath('/partner')
+    return {
+      success: true,
+      message: 'EasyPost shipping enabled. Carrier rates will show when you create invoices.',
+    }
+  }
+
+  // Test key / child create blocked — enable company key fallback so USPS/UPS work.
+  if (!process.env.EASYPOST_API_KEY) {
+    return {
+      error:
+        child.error ||
+        'Company EasyPost is not configured. Add EASYPOST_API_KEY on the server first.',
+    }
+  }
+
+  const { error } = await ctx.supabase
+    .from('distributors')
+    .update({
+      easypost_use_company: true,
+      easypost_api_key_last4: 'CO',
+      easypost_api_key_ciphertext: null,
+    })
+    .eq('id', ctx.distributor.id)
+
+  if (error) return { error: error.message }
+  revalidatePath('/partner/payments')
+  revalidatePath('/partner')
+  return {
+    success: true,
+    message:
+      'EasyPost shipping enabled for your account. Carrier rates (USPS/UPS) are available on new invoices.',
+  }
 }

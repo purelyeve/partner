@@ -16,7 +16,7 @@ export default async function PartnerInvoicesPage() {
   const { data: invoices } = await supabase
     .from('invoices')
     .select(
-      'id, invoice_number, customer_name_snapshot, customer_type, status, total_cents, created_at, expires_at, paid_at',
+      'id, invoice_number, customer_name_snapshot, customer_type, status, total_cents, created_at, expires_at, paid_at, fulfilled_at, refunded_at',
     )
     .eq('distributor_id', distributor.id)
     .order('created_at', { ascending: false })
@@ -49,42 +49,59 @@ export default async function PartnerInvoicesPage() {
                 <th className="p-3">Customer</th>
                 <th className="p-3">Type</th>
                 <th className="p-3">Status</th>
+                <th className="p-3">Fulfillment</th>
                 <th className="p-3">Total</th>
                 <th className="p-3">Created</th>
               </tr>
             </thead>
             <tbody>
-              {invoices.map((inv) => (
-                <tr key={inv.id} className="border-t border-pe-beige">
-                  <td className="p-3">
-                    <Link
-                      href={`/partner/invoices/${inv.id}`}
-                      className="font-medium hover:underline"
-                    >
-                      {inv.invoice_number}
-                    </Link>
-                  </td>
-                  <td className="p-3">{inv.customer_name_snapshot}</td>
-                  <td className="p-3">{customerTypeLabel(inv.customer_type)}</td>
-                  <td className="p-3">
-                    <Badge
-                      tone={
-                        inv.status === 'paid'
-                          ? 'success'
-                          : inv.status === 'expired' || inv.status === 'cancelled'
-                            ? 'error'
-                            : inv.status === 'sent'
-                              ? 'gold'
-                              : 'neutral'
-                      }
-                    >
-                      {invoiceStatusLabel(inv.status)}
-                    </Badge>
-                  </td>
-                  <td className="p-3">{formatCurrency(inv.total_cents)}</td>
-                  <td className="p-3">{formatDate(inv.created_at)}</td>
-                </tr>
-              ))}
+              {invoices.map((inv) => {
+                const isPaid = inv.status === 'paid' && !inv.refunded_at
+                const fulfilled = Boolean(inv.fulfilled_at)
+                return (
+                  <tr key={inv.id} className="border-t border-pe-beige">
+                    <td className="p-3">
+                      <Link
+                        href={`/partner/invoices/${inv.id}`}
+                        className="font-medium hover:underline"
+                      >
+                        {inv.invoice_number}
+                      </Link>
+                    </td>
+                    <td className="p-3">{inv.customer_name_snapshot}</td>
+                    <td className="p-3">{customerTypeLabel(inv.customer_type)}</td>
+                    <td className="p-3">
+                      <Badge
+                        tone={
+                          inv.status === 'paid'
+                            ? 'success'
+                            : inv.status === 'expired' || inv.status === 'cancelled'
+                              ? 'error'
+                              : inv.status === 'sent'
+                                ? 'gold'
+                                : 'neutral'
+                        }
+                      >
+                        {invoiceStatusLabel(inv.status)}
+                      </Badge>
+                    </td>
+                    <td className="p-3">
+                      {!isPaid ? (
+                        <span className="text-pe-brown">—</span>
+                      ) : (
+                        <Link
+                          href={`/partner/fulfillments/${inv.id}`}
+                          className="underline"
+                        >
+                          {fulfilled ? 'Fulfilled' : 'Unfulfilled'}
+                        </Link>
+                      )}
+                    </td>
+                    <td className="p-3">{formatCurrency(inv.total_cents)}</td>
+                    <td className="p-3">{formatDate(inv.created_at)}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

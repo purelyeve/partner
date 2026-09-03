@@ -217,17 +217,29 @@ export async function partnerDeleteCustomerAction(
     .single()
   if (!distributor) return { error: 'Distributor not found' }
 
-  const { count } = await supabase
+  const { count: blocking } = await supabase
     .from('invoices')
     .select('id', { count: 'exact', head: true })
     .eq('customer_id', customerId)
     .eq('distributor_id', distributor.id)
+    .in('status', ['draft', 'sent', 'paid'])
 
-  if ((count ?? 0) > 0) {
+  if ((blocking ?? 0) > 0) {
     return {
-      error: 'This customer has invoices. Cancel or keep them for records; deletion is blocked while invoices exist.',
+      error:
+        'This customer still has draft, sent, or paid invoices. Cancel unpaid ones or refund paid ones before deleting.',
     }
   }
+
+  // Cancelled / expired invoices: remove so FK allows customer delete.
+  const { error: invErr } = await supabase
+    .from('invoices')
+    .delete()
+    .eq('customer_id', customerId)
+    .eq('distributor_id', distributor.id)
+    .in('status', ['cancelled', 'expired'])
+
+  if (invErr) return { error: invErr.message }
 
   const { error } = await supabase
     .from('customers')

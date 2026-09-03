@@ -48,22 +48,28 @@ export async function createConnectOnboardingLink(params: {
         params.businessName || dist.business_name || params.email.split('@')[0] || 'Partner'
 
       // Accounts v2 — required for new Connect platforms (v1 create is blocked by default).
+      // Prefills website + beauty retail MCC for Stripe onboarding (Partner can still edit).
       const account = await stripe.v2.core.accounts.create({
         contact_email: params.email,
         display_name: displayName,
         identity: {
           country: 'us',
         },
-        // Matches Purely Eve Connect platform setup (embedded / no full Express dashboard).
         dashboard: 'none',
         defaults: {
           responsibilities: {
             fees_collector: 'stripe',
             losses_collector: 'stripe',
           },
+          profile: {
+            business_url: 'https://purelyeve.com',
+            product_description:
+              'Retail beauty and skincare products (Purely Eve Partner reseller)',
+          },
         },
         configuration: {
           merchant: {
+            mcc: '5977',
             capabilities: {
               card_payments: { requested: true },
             },
@@ -73,7 +79,8 @@ export async function createConnectOnboardingLink(params: {
           distributor_id: params.distributorId,
         },
         include: ['configuration.merchant', 'defaults', 'identity'],
-      })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any)
 
       accountId = account.id
 

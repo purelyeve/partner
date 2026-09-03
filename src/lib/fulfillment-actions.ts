@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { appUrl, emailShell, sendEmail } from '@/lib/email'
 import { buyPartnerLabel, parcelFromPackage } from '@/lib/easypost'
-import { decryptSecret } from '@/lib/crypto'
+import { resolvePartnerEasyPostKey } from '@/lib/easypost-partner'
 import { getStripe } from '@/lib/stripe'
 import { restoreInventoryForRefundedInvoice } from '@/lib/inventory'
 import { formatCurrency } from '@/lib/utils'
@@ -82,19 +82,11 @@ export async function partnerBuyLabelAndFulfillAction(invoiceId: string) {
     return { error: 'This order was refunded and cannot be shipped.' }
   }
 
-  if (!ctx.distributor.easypost_api_key_ciphertext) {
-    return {
-      error:
-        'Add your EasyPost API key under Payments before buying customer labels. Postage bills your EasyPost account.',
-    }
+  const resolved = resolvePartnerEasyPostKey(ctx.distributor)
+  if ('error' in resolved) {
+    return { error: resolved.error }
   }
-
-  let apiKey: string
-  try {
-    apiKey = decryptSecret(ctx.distributor.easypost_api_key_ciphertext)
-  } catch {
-    return { error: 'Could not read your EasyPost API key. Re-save it under Payments.' }
-  }
+  const apiKey = resolved.apiKey
 
   const lines = (invoice.invoice_line_items ?? []) as Array<{
     quantity: number
@@ -183,8 +175,8 @@ export async function partnerBuyLabelAndFulfillAction(invoiceId: string) {
     })
   }
 
-  revalidatePath('/partner/orders')
-  revalidatePath(`/partner/orders/${invoice.id}`)
+  revalidatePath('/partner/fulfillments')
+  revalidatePath(`/partner/fulfillments/${invoice.id}`)
   revalidatePath(`/partner/invoices/${invoice.id}`)
   revalidatePath('/partner')
 
@@ -299,7 +291,7 @@ export async function partnerRefundPaidInvoiceAction(formData: FormData) {
         `<p>Dear ${ctx.profile.full_name},</p>
          <p>You refunded invoice <strong>${invoice.invoice_number}</strong> (${formatCurrency(invoice.total_cents)}).</p>
          <p>Inventory for that order has been restored to your stock.</p>
-         <p><a href="${appUrl()}/partner/orders/${invoice.id}">View order</a></p>`,
+         <p><a href="${appUrl()}/partner/fulfillments/${invoice.id}">View order</a></p>`,
       ),
     })
   } catch (err) {
@@ -308,8 +300,8 @@ export async function partnerRefundPaidInvoiceAction(formData: FormData) {
     return { error: message }
   }
 
-  revalidatePath('/partner/orders')
-  revalidatePath(`/partner/orders/${invoiceId}`)
+  revalidatePath('/partner/fulfillments')
+  revalidatePath(`/partner/fulfillments/${invoiceId}`)
   revalidatePath(`/partner/invoices/${invoiceId}`)
   revalidatePath('/partner/inventory')
   revalidatePath('/partner')
@@ -344,7 +336,7 @@ export async function partnerCancelUnpaidInvoiceAction(invoiceId: string) {
 
   revalidatePath('/partner/invoices')
   revalidatePath(`/partner/invoices/${invoiceId}`)
-  revalidatePath('/partner/orders')
+  revalidatePath('/partner/fulfillments')
   return { success: true, message: 'Invoice cancelled.' }
 }
 

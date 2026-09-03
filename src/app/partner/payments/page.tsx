@@ -23,7 +23,6 @@ export default async function PaymentsPage({
     }
   }
 
-  // Re-read after possible sync
   const { distributor: fresh } = await requireDistributor()
   const ready = isConnectReady(fresh)
 
@@ -44,6 +43,7 @@ export default async function PaymentsPage({
       balance={balance}
       payouts={payouts}
       easypostLast4={fresh.easypost_api_key_last4 ?? null}
+      easypostReady={Boolean(fresh.easypost_use_company || fresh.easypost_api_key_last4)}
       returnedFromStripe={q.return === '1'}
       refreshedFromStripe={q.refresh === '1'}
     />

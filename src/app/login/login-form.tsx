@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useEffect } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { PageShell } from '@/components/layout/page-shell'
 import { Alert, Button, Label } from '@/components/ui'
@@ -14,13 +14,22 @@ export default function LoginPage({
   verified?: string
 }) {
   const [state, action, pending] = useActionState(loginAction, null)
+  const [stuck, setStuck] = useState(false)
 
   useEffect(() => {
     if (state?.success && state.redirectTo) {
-      // Hard navigation so auth cookies from the server action are applied cleanly
       window.location.assign(state.redirectTo)
     }
   }, [state])
+
+  useEffect(() => {
+    if (!pending) {
+      setStuck(false)
+      return
+    }
+    const t = setTimeout(() => setStuck(true), 12000)
+    return () => clearTimeout(t)
+  }, [pending])
 
   return (
     <PageShell>
@@ -40,6 +49,11 @@ export default function LoginPage({
           </Alert>
         )}
         {state?.error && <Alert variant="error">{state.error}</Alert>}
+        {stuck && pending && (
+          <Alert variant="warning">
+            Sign-in is taking longer than usual. Wait a moment, or refresh and try again.
+          </Alert>
+        )}
 
         <form action={action} className="space-y-4 mt-6">
           <div>

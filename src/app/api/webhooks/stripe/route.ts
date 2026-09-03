@@ -5,11 +5,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { DISTRIBUTOR_PROFILE } from '@/lib/constants'
 import { appUrl, emailShell, notifyCompany, sendEmail } from '@/lib/email'
 import { formatCurrency } from '@/lib/utils'
-import {
-  deductInventoryForPaidInvoice,
-  restoreInventoryForRefundedInvoice,
-} from '@/lib/inventory'
+import { restoreInventoryForRefundedInvoice } from '@/lib/inventory'
 import { syncConnectAccountStatus } from '@/lib/stripe-connect'
+import { markCustomerInvoicePaid } from '@/lib/invoice-paid'
 import type Stripe from 'stripe'
 
 export async function POST(request: Request) {
@@ -83,8 +81,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ received: true })
   }
 
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object as Stripe.Checkout.Session
+  async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     if (session.metadata?.type === 'package_order' && session.metadata.order_id) {
       const admin = createAdminClient()
       const { data: order } = await admin
@@ -137,86 +134,34 @@ export async function POST(request: Request) {
     }
 
     if (session.metadata?.type === 'customer_invoice' && session.metadata.invoice_id) {
-      const admin = createAdminClient()
-      const { data: invoice } = await admin
-        .from('invoices')
-        .select(
-          `*, distributors(business_name, ${DISTRIBUTOR_PROFILE}(email, full_name))`,
-        )
-        .eq('id', session.metadata.invoice_id)
-        .single()
+      const result = await markCustomerInvoicePaid({
+        invoiceId: session.metadata.invoice_id,
+        paymentIntentId: session.payment_intent
+          ? String(session.payment_intent)
+          : null,
+        checkoutSessionId: session.id,
+      })
+      if (!result.ok) {
+        console.error('[webhook] markCustomerInvoicePaid', result.error)
+      }
+    }
+  }
 
-      if (invoice && invoice.status !== 'paid' && invoice.status !== 'cancelled') {
-        await admin
-          .from('invoices')
-          .update({
-            status: 'paid',
-            paid_at: new Date().toISOString(),
-            stripe_payment_intent_id: String(session.payment_intent ?? ''),
-            stripe_checkout_session_id: session.id,
-          })
-          .eq('id', invoice.id)
+  if (event.type === 'checkout.session.completed') {
+    await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session)
+  }
 
-        try {
-          await deductInventoryForPaidInvoice(invoice.id)
-        } catch (err) {
-          console.error('[webhook] inventory deduct failed', err)
-        }
-
-        const dist = invoice.distributors as {
-          business_name: string
-          profiles: { email: string; full_name: string }
-        } | null
-        const partnerEmail = dist?.profiles?.email
-        const partnerName = dist?.profiles?.full_name || 'Partner'
-
-        if (partnerEmail) {
-          await sendEmail({
-            to: partnerEmail,
-            subject: `Invoice ${invoice.invoice_number} paid — ready to ship`,
-            html: emailShell(
-              'Invoice paid',
-              `<p>Dear ${partnerName},</p>
-               <p>Your customer <strong>${invoice.customer_name_snapshot}</strong> paid invoice <strong>${invoice.invoice_number}</strong> for ${formatCurrency(invoice.total_cents)}.</p>
-               <p>Inventory for the items on this invoice has been deducted from your on-hand stock.</p>
-               <p>Next step: buy a shipping label and mark the order shipped.</p>
-               <p style="margin:24px 0;">
-                 <a href="${appUrl()}/partner/orders/${invoice.id}" style="background:#3a2108;color:#f5f0e8;padding:12px 20px;text-decoration:none;display:inline-block;">Open fulfillment</a>
-               </p>
-               <p><a href="${appUrl()}/partner/orders">Pending orders</a> · <a href="${appUrl()}/partner">Dashboard</a></p>`,
-            ),
-          })
-        }
-
-        if (invoice.customer_email_snapshot) {
-          const seller =
-            invoice.seller_name_snapshot ||
-            dist?.business_name ||
-            partnerName
-          const contactBits = [
-            invoice.seller_email_snapshot
-              ? `Email: ${invoice.seller_email_snapshot}`
-              : null,
-            invoice.seller_phone_snapshot
-              ? `Phone: ${invoice.seller_phone_snapshot}`
-              : null,
-          ]
-            .filter(Boolean)
-            .join('<br/>')
-
-          await sendEmail({
-            to: invoice.customer_email_snapshot,
-            subject: `Payment received — ${invoice.invoice_number}`,
-            replyTo: invoice.seller_email_snapshot || undefined,
-            html: emailShell(
-              'Payment received',
-              `<p>Dear ${invoice.customer_name_snapshot},</p>
-               <p>Thank you. Your payment of <strong>${formatCurrency(invoice.total_cents)}</strong> for invoice <strong>${invoice.invoice_number}</strong> from ${seller} has been received.</p>
-               ${contactBits ? `<p>Questions? Contact your Partner:<br/>${contactBits}</p>` : ''}
-               <p style="margin:24px 0;"><a href="${appUrl()}/pay/${invoice.public_token}" style="background:#3a2108;color:#f5f0e8;padding:12px 20px;text-decoration:none;display:inline-block;">View receipt</a></p>`,
-            ),
-          })
-        }
+  // Connect fallback: some destinations deliver payment_intent.succeeded instead.
+  if (event.type === 'payment_intent.succeeded') {
+    const pi = event.data.object as Stripe.PaymentIntent
+    const invoiceId = pi.metadata?.invoice_id
+    if (pi.metadata?.type === 'customer_invoice' && invoiceId) {
+      const result = await markCustomerInvoicePaid({
+        invoiceId,
+        paymentIntentId: pi.id,
+      })
+      if (!result.ok) {
+        console.error('[webhook] PI markCustomerInvoicePaid', result.error)
       }
     }
   }

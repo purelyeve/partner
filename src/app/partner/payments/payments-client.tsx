@@ -2,11 +2,11 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { Alert, Button, Card, Label } from '@/components/ui'
+import { Alert, Button, Card } from '@/components/ui'
 import {
   openConnectDashboardAction,
   refreshConnectStatusAction,
-  savePartnerEasyPostKeyAction,
+  enablePartnerEasyPostAction,
   startConnectOnboardingAction,
 } from '@/lib/connect-actions'
 import { formatCurrency } from '@/lib/utils'
@@ -29,6 +29,7 @@ export default function PaymentsClient({
   balance,
   payouts,
   easypostLast4,
+  easypostReady,
   returnedFromStripe,
   refreshedFromStripe,
 }: {
@@ -40,6 +41,7 @@ export default function PaymentsClient({
   balance: { availableCents: number; pendingCents: number; currency: string } | null
   payouts: PayoutRow[]
   easypostLast4: string | null
+  easypostReady: boolean
   returnedFromStripe?: boolean
   refreshedFromStripe?: boolean
 }) {
@@ -192,60 +194,42 @@ export default function PaymentsClient({
           ) : (
             <p className="text-sm text-pe-brown">No payouts yet.</p>
           )}
+          <p className="text-sm">
+            <Link href="/partner/payments/report" className="underline">
+              Open payout &amp; fee breakdown report →
+            </Link>
+          </p>
         </Card>
       )}
 
       <Card className="space-y-4">
-        <h2 className="text-lg">EasyPost — customer shipping labels</h2>
+        <h2 className="text-lg">EasyPost — customer shipping</h2>
         <p className="text-sm text-pe-brown">
-          Customer labels are purchased with <strong>your</strong> EasyPost account (you pay postage).
-          Company EasyPost is only used for Partner inventory packages shipped to you.
+          Enable shipping from this portal (no EasyPost website visit). Carrier rates and labels are
+          set up for your Partner account automatically.
         </p>
-        {easypostLast4 ? (
-          <p className="text-sm">
-            Key on file ending in <strong>…{easypostLast4}</strong>
-          </p>
+        {easypostReady ? (
+          <Alert variant="success">
+            EasyPost shipping is enabled
+            {easypostLast4 && easypostLast4 !== 'CO'
+              ? ` (key …${easypostLast4})`
+              : ' (company-linked)'}.
+            USPS/UPS options appear when you create invoices.
+          </Alert>
         ) : (
           <Alert variant="warning">
-            No EasyPost key saved yet. You need one before quoting shipping on invoices or buying
-            labels.
+            Shipping is not enabled yet. Without this, invoices only show Free shipping.
           </Alert>
         )}
-        <form
-          className="space-y-3"
-          action={(fd) => run(() => savePartnerEasyPostKeyAction(fd))}
-        >
-          <div>
-            <Label htmlFor="easypostApiKey">EasyPost API key</Label>
-            <input
-              id="easypostApiKey"
-              name="easypostApiKey"
-              type="password"
-              autoComplete="off"
-              placeholder={easypostLast4 ? 'Paste a new key to replace' : 'EZTK… or EZAK…'}
-            />
-            <p className="text-xs text-pe-brown mt-1">
-              EasyPost → Account Settings → API Keys. Use Test for staging, Production for live.
-              Connect USPS/UPS and add a payment method in EasyPost.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Button type="submit" disabled={pending}>
-              Save EasyPost key
-            </Button>
-            {easypostLast4 && (
-              <Button
-                type="submit"
-                name="clearKey"
-                value="1"
-                variant="secondary"
-                disabled={pending}
-              >
-                Remove key
-              </Button>
-            )}
-          </div>
-        </form>
+        {!easypostReady && (
+          <Button
+            type="button"
+            disabled={pending}
+            onClick={() => run(() => enablePartnerEasyPostAction())}
+          >
+            {pending ? 'Enabling…' : 'Enable EasyPost shipping'}
+          </Button>
+        )}
       </Card>
     </div>
   )

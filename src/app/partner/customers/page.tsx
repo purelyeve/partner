@@ -39,6 +39,27 @@ export default async function PartnerCustomersPage({
 
   const { data: customers } = await query
 
+  const customerIds = (customers ?? []).map((c) => c.id)
+  const trackingByCustomer = new Map<string, string>()
+
+  if (customerIds.length) {
+    const { data: paid } = await supabase
+      .from('invoices')
+      .select('customer_id, tracking_code, paid_at, fulfilled_at')
+      .eq('distributor_id', distributor.id)
+      .in('customer_id', customerIds)
+      .eq('status', 'paid')
+      .not('tracking_code', 'eq', '')
+      .order('paid_at', { ascending: false })
+
+    for (const inv of paid ?? []) {
+      if (!inv.customer_id || !inv.tracking_code) continue
+      if (!trackingByCustomer.has(inv.customer_id)) {
+        trackingByCustomer.set(inv.customer_id, inv.tracking_code)
+      }
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -48,7 +69,7 @@ export default async function PartnerCustomersPage({
           </Link>
           <h1 className="text-3xl mt-2">Customers</h1>
           <p className="text-sm text-pe-brown mt-1">
-            Save customer details once. Resale certificates reuse on wholesale invoices.
+            Save customer details once. Latest shipment tracking shows when available.
           </p>
         </div>
         <Link href="/partner/customers/new">
@@ -98,6 +119,7 @@ export default async function PartnerCustomersPage({
                 <th className="p-3">Email</th>
                 <th className="p-3">Phone</th>
                 <th className="p-3">Location</th>
+                <th className="p-3">Tracking</th>
                 <th className="p-3">Resale</th>
                 <th className="p-3">Added</th>
                 <th className="p-3" />
@@ -115,6 +137,9 @@ export default async function PartnerCustomersPage({
                   <td className="p-3">{c.phone || '—'}</td>
                   <td className="p-3">
                     {[c.billing_city, c.billing_state].filter(Boolean).join(', ')}
+                  </td>
+                  <td className="p-3 font-mono text-xs">
+                    {trackingByCustomer.get(c.id) || '—'}
                   </td>
                   <td className="p-3">{c.resale_certificate_number ? 'On file' : '—'}</td>
                   <td className="p-3">{formatDate(c.created_at)}</td>

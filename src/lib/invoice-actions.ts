@@ -10,7 +10,7 @@ import { getPackageShippingRates, parcelFromPackage } from '@/lib/easypost'
 import { calculateDestinationTaxCents } from '@/lib/tax'
 import { getStripe } from '@/lib/stripe'
 import { isConnectReady } from '@/lib/stripe-connect'
-import { decryptSecret } from '@/lib/crypto'
+import { resolvePartnerEasyPostKey } from '@/lib/easypost-partner'
 import {
   computeDiscountCents,
   generateInvoiceNumber,
@@ -227,26 +227,17 @@ export async function getInvoiceShippingRatesAction(formData: FormData) {
       }
 
   let partnerApiKey: string | undefined
-  if (ctx.distributor.easypost_api_key_ciphertext) {
-    try {
-      partnerApiKey = decryptSecret(ctx.distributor.easypost_api_key_ciphertext)
-    } catch {
-      return {
-        error:
-          'Could not read your EasyPost API key. Re-save it under Payments, then try rates again.',
-      }
-    }
-  }
-  if (!partnerApiKey) {
+  const resolved = resolvePartnerEasyPostKey(ctx.distributor)
+  if ('error' in resolved) {
     return {
       rates: [
         { id: 'free', carrier: 'FREE', service: 'Free shipping', rateCents: 0, deliveryDays: null },
       ],
       shipmentId: '',
-      warning:
-        'Only free shipping is available until you add your EasyPost API key under Payments (required for paid rates and customer labels).',
+      warning: resolved.error,
     }
   }
+  partnerApiKey = resolved.apiKey
 
   const result = await getPackageShippingRates({
     apiKey: partnerApiKey,
@@ -293,21 +284,10 @@ export async function partnerCreateInvoiceAction(
   const ctx = await requirePartnerDistributor()
   if ('error' in ctx) return { error: ctx.error }
 
-  // Free shipping does not need EasyPost at invoice time; paid shipping + labels do.
-  const freeShippingEarly =
-    String(formData.get('rateId') ?? '') === 'free' ||
-    String(formData.get('carrier') ?? '') === 'FREE'
-
   if (!isConnectReady(ctx.distributor)) {
     return {
       error:
         'Connect your bank under Payments (Stripe Connect) before creating invoices customers can pay.',
-    }
-  }
-  if (!freeShippingEarly && !ctx.distributor.easypost_api_key_ciphertext) {
-    return {
-      error:
-        'Add your EasyPost API key under Payments before creating invoices with paid shipping.',
     }
   }
 
@@ -697,4 +677,65 @@ export async function createInvoiceCheckoutAction(token: string): Promise<Action
 
   if (!session.url) return { error: 'Could not create payment session.' }
   return { success: true, url: session.url }
+}
+
+/**
+ * After Stripe Checkout redirect (?paid=1), sync invoice paid status if webhook was delayed/missed.
+ * Works for Connect direct charges by retrieving the session on the connected account.
+ */
+export async function syncInvoicePaymentAfterCheckoutAction(token: string) {
+  const admin = createAdminClient()
+  const { data: invoice } = await admin
+    .from('invoices')
+    .select(
+      'id, status, stripe_checkout_session_id, distributor_id, distributors(stripe_account_id)',
+    )
+    .eq('public_token', token)
+    .single()
+
+  if (!invoice) return { error: 'Invoice not found.' }
+  if (invoice.status === 'paid') return { success: true, alreadyPaid: true }
+
+  const sessionId = invoice.stripe_checkout_session_id
+  if (!sessionId) {
+    return { error: 'No checkout session on this invoice yet.' }
+  }
+
+  const dist = invoice.distributors as { stripe_account_id?: string | null } | null
+  const stripeAccount = dist?.stripe_account_id
+  if (!stripeAccount) {
+    return { error: 'Partner Stripe account missing.' }
+  }
+
+  const stripe = getStripe()
+  try {
+    const session = await stripe.checkout.sessions.retrieve(
+      sessionId,
+      { expand: ['payment_intent'] },
+      { stripeAccount },
+    )
+
+    if (session.payment_status !== 'paid' && session.status !== 'complete') {
+      return { error: 'Payment not completed yet. Refresh in a moment.' }
+    }
+
+    const { markCustomerInvoicePaid } = await import('@/lib/invoice-paid')
+    const pi =
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : session.payment_intent?.id
+
+    const result = await markCustomerInvoicePaid({
+      invoiceId: invoice.id,
+      paymentIntentId: pi ?? null,
+      checkoutSessionId: session.id,
+    })
+
+    if (!result.ok) return { error: result.error }
+    return { success: true }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Could not verify payment'
+    console.error('[sync payment]', message)
+    return { error: message }
+  }
 }

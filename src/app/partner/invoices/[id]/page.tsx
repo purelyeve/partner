@@ -94,14 +94,14 @@ export default async function InvoiceDetailPage({
       {invoice.status === 'paid' && (
         <Alert variant="success">
           Paid.{' '}
-          <Link href={`/partner/orders/${invoice.id}`}>Open fulfillment / refund →</Link>
+          <Link href={`/partner/fulfillments/${invoice.id}`}>Open fulfillment / refund →</Link>
         </Alert>
       )}
 
       {invoice.status === 'cancelled' && invoice.refunded_at && (
         <Alert variant="info">
           Refunded / cancelled. Stock restored if it had been deducted.{' '}
-          <Link href={`/partner/orders/${invoice.id}`}>View order →</Link>
+          <Link href={`/partner/fulfillments/${invoice.id}`}>View order →</Link>
         </Alert>
       )}
 

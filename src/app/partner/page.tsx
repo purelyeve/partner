@@ -43,7 +43,9 @@ export default async function PartnerDashboardPage() {
       distributor.stripe_charges_enabled &&
       distributor.stripe_onboarding_complete,
   )
-  const hasEasyPost = Boolean(distributor.easypost_api_key_last4)
+  const hasEasyPost = Boolean(
+    distributor.easypost_use_company || distributor.easypost_api_key_last4,
+  )
 
   const { data: latestResale } = await supabase
     .from('distributor_documents')
@@ -124,10 +126,9 @@ export default async function PartnerDashboardPage() {
 
       {distributor.application_status === 'approved' && connectReady && !hasEasyPost && (
         <Alert variant="info">
-          Add your EasyPost API key so you can quote shipping and buy customer labels (postage bills
-          your EasyPost account).
+          Add your EasyPost shipping under Payments so you can quote shipping and buy customer labels.
           <div className="mt-3">
-            <Link href="/partner/payments"><Button variant="secondary">Add EasyPost key</Button></Link>
+            <Link href="/partner/payments"><Button variant="secondary">Enable EasyPost shipping</Button></Link>
           </div>
         </Alert>
       )}
@@ -137,7 +138,7 @@ export default async function PartnerDashboardPage() {
           You have {pendingFulfillment} paid order{pendingFulfillment === 1 ? '' : 's'} waiting to
           ship.
           <div className="mt-3">
-            <Link href="/partner/orders?filter=pending"><Button>Open fulfillment queue</Button></Link>
+            <Link href="/partner/fulfillments?filter=pending"><Button>Open fulfillment queue</Button></Link>
           </div>
         </Alert>
       )}
@@ -162,8 +163,8 @@ export default async function PartnerDashboardPage() {
             <Link href="/partner/invoices/new" className="text-sm">
               New invoice →
             </Link>
-            <Link href="/partner/orders" className="text-sm">
-              Orders →
+            <Link href="/partner/fulfillments" className="text-sm">
+              Fulfillments →
             </Link>
             <Link href="/partner/payments" className="text-sm">
               Payments →

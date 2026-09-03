@@ -1,8 +1,11 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { Alert, Button, Card } from '@/components/ui'
-import { createInvoiceCheckoutAction } from '@/lib/invoice-actions'
+import {
+  createInvoiceCheckoutAction,
+  syncInvoicePaymentAfterCheckoutAction,
+} from '@/lib/invoice-actions'
 import {
   customerTypeLabel,
   formatCurrency,
@@ -46,7 +49,7 @@ type PayLine = {
 
 export default function PayInvoiceClient({
   token,
-  invoice,
+  invoice: initialInvoice,
   lines,
   paidFlag,
   cancelledFlag,
@@ -57,8 +60,34 @@ export default function PayInvoiceClient({
   paidFlag?: boolean
   cancelledFlag?: boolean
 }) {
+  const [invoice, setInvoice] = useState(initialInvoice)
   const [error, setError] = useState<string | null>(null)
+  const [syncNote, setSyncNote] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+
+  useEffect(() => {
+    if (!paidFlag || invoice.status === 'paid') return
+    let cancelled = false
+    ;(async () => {
+      setSyncNote('Confirming payment…')
+      const result = await syncInvoicePaymentAfterCheckoutAction(token)
+      if (cancelled) return
+      if (result.error) {
+        setSyncNote(null)
+        setError(result.error)
+        return
+      }
+      setInvoice((prev) => ({
+        ...prev,
+        status: 'paid',
+        paid_at: prev.paid_at || new Date().toISOString(),
+      }))
+      setSyncNote('Payment confirmed.')
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [paidFlag, token, invoice.status])
 
   const canPay = invoice.status === 'sent' || invoice.status === 'draft'
 
@@ -95,6 +124,7 @@ export default function PayInvoiceClient({
               Payment received{invoice.paid_at ? ` on ${formatDate(invoice.paid_at)}` : ''}. Thank
               you.
             </Alert>
+            {syncNote && <Alert variant="info">{syncNote}</Alert>}
             <div className="flex flex-wrap gap-3 justify-center">
               <a href="https://purelyeve.com" target="_blank" rel="noopener noreferrer">
                 <Button type="button">Visit Purely Eve</Button>

@@ -59,6 +59,8 @@ export interface Distributor {
   stripe_onboarding_complete?: boolean
   easypost_api_key_ciphertext?: string | null
   easypost_api_key_last4?: string | null
+  easypost_user_id?: string | null
+  easypost_use_company?: boolean
   created_at: string
   updated_at: string
 }
