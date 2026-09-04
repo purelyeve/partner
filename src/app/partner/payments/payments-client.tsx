@@ -68,10 +68,10 @@ export default function PaymentsClient({
         <Link href="/partner" className="text-sm">
           ← Dashboard
         </Link>
-        <h1 className="text-3xl mt-2">Payments & shipping</h1>
+        <h1 className="text-3xl mt-2">Payouts &amp; Reports</h1>
         <p className="text-sm text-pe-brown">
-          Connect your bank once. Customer payments land in your Stripe account and shipping labels
-          are ready to buy from the portal, with nothing else to set up.
+          Receive your customer payouts by setting up your Stripe account below and connecting your
+          bank account.
         </p>
       </div>
 
@@ -90,8 +90,20 @@ export default function PaymentsClient({
         <h2 className="text-lg">Stripe Connect — customer payments</h2>
         <p className="text-sm text-pe-brown">
           Customer invoice payments go to your connected Stripe account. Stripe&apos;s processing fee
-          comes out of your proceeds. The shipping the customer paid is passed to Purely Eve, which
-          covers the postage for your label, so your payout is the product and tax total.
+          comes out of your proceeds. Your final payout is the amount collected on the product order
+          plus tax collected. Stripe&apos;s fees are as follows:
+        </p>
+        <ul className="text-sm space-y-1 list-disc pl-5 text-pe-brown">
+          <li>
+            Card payments: <strong>2.9% + $0.30</strong> per successful charge (standard U.S. rate)
+          </li>
+          <li>
+            Instant Payouts (optional, via Stripe): additional fee shown in Stripe before you confirm
+          </li>
+        </ul>
+        <p className="text-sm text-pe-brown">
+          Shipping the customer paid is passed to Purely Eve to cover postage on your label, so it is
+          not part of your payout.
         </p>
         <ul className="text-sm space-y-1">
           <li>
@@ -197,19 +209,6 @@ export default function PaymentsClient({
           </p>
         </Card>
       )}
-
-      <Card className="space-y-3">
-        <h2 className="text-lg">Customer shipping</h2>
-        <p className="text-sm text-pe-brown">
-          Nothing to set up. USPS and UPS rates appear when you build an invoice, and the customer
-          pays that amount at checkout. When the order is paid, buy and print the label from{' '}
-          <Link href="/partner/fulfillments" className="underline">
-            Fulfillments
-          </Link>
-          . The postage is already covered by the shipping the customer paid, so there is no bill to
-          you and no shipping account to open.
-        </p>
-      </Card>
     </div>
   )
 }

@@ -86,11 +86,31 @@ export function isCompanyShipFromConfigured(): boolean {
   )
 }
 
-function shipFromPayload(): Record<string, string> {
-  const from = getCompanyShipFrom()
+/**
+ * Build from_address for EasyPost without duplicating the same string on name
+ * and company (carriers print both lines on the label).
+ */
+export function easypostFromAddress(from: EasyPostAddress): Record<string, string> {
+  const name = (from.name || '').trim()
+  const company = (from.company || '').trim()
+  const same =
+    Boolean(name) &&
+    Boolean(company) &&
+    name.localeCompare(company, undefined, { sensitivity: 'accent' }) === 0
+
+  let nameOut = name
+  let companyOut = company
+  if (same) {
+    // One identity — put it on the name line only.
+    companyOut = ''
+  } else if (!nameOut && companyOut) {
+    nameOut = companyOut
+    companyOut = ''
+  }
+
   return {
-    name: from.name || 'Purely Eve LLC',
-    company: from.company || from.name || 'Purely Eve LLC',
+    name: nameOut || 'Shipper',
+    company: companyOut,
     phone: from.phone || '',
     street1: from.street1,
     street2: from.street2 || '',
@@ -99,6 +119,10 @@ function shipFromPayload(): Record<string, string> {
     zip: from.zip,
     country: from.country || 'US',
   }
+}
+
+function shipFromPayload(): Record<string, string> {
+  return easypostFromAddress(getCompanyShipFrom())
 }
 
 function parcelPayload(parcel: ParcelSpec) {
@@ -146,17 +170,7 @@ export async function getPackageShippingRates(params: {
   }
 
   const fromAddress = params.from
-    ? {
-        name: params.from.name || '',
-        company: params.from.company || params.from.name || '',
-        phone: params.from.phone || '',
-        street1: params.from.street1,
-        street2: params.from.street2 || '',
-        city: params.from.city,
-        state: params.from.state,
-        zip: params.from.zip,
-        country: params.from.country || 'US',
-      }
+    ? easypostFromAddress(params.from)
     : shipFromPayload()
 
   if (!params.from && !isCompanyShipFromConfigured()) {
@@ -204,11 +218,13 @@ export async function getPackageShippingRates(params: {
   if (!shipmentRes.ok) {
     const detail = await shipmentRes.text()
     console.error('[easypost] shipment error', detail)
+    const epMessage = parseEasyPostError(detail)
     return {
       ok: false,
       rates: [],
       error:
-        'EasyPost could not quote shipping for this address. Confirm USPS/UPS are connected in EasyPost test mode and the ship-to address is complete.',
+        epMessage ||
+        'EasyPost could not quote shipping for this address. Confirm the ship-to and your fulfillment (ship-from) address are complete, then try again.',
     }
   }
 
@@ -221,6 +237,7 @@ export async function getPackageShippingRates(params: {
       rate: string
       delivery_days: number | null
     }>
+    messages?: Array<{ carrier?: string; type?: string; message?: string }>
   }
 
   const rates = (shipment.rates ?? [])
@@ -238,7 +255,12 @@ export async function getPackageShippingRates(params: {
     return {
       ok: false,
       rates: [],
-      error: noRatesError(rates.length, 'USPS', 'Ground Advantage'),
+      error: noRatesError(
+        rates.length,
+        'USPS',
+        'Ground Advantage',
+        shipment.messages,
+      ),
     }
   }
 
@@ -401,12 +423,21 @@ function noRatesError(
   totalRates: number,
   wantCarrier: string,
   wantService: string,
+  messages?: Array<{ carrier?: string; type?: string; message?: string }>,
 ): string {
+  const carrierHints = (messages ?? [])
+    .map((m) => m.message?.trim())
+    .filter((m): m is string => Boolean(m))
+    .slice(0, 2)
+
   if (totalRates === 0) {
+    const hint = carrierHints.length
+      ? ` Carrier note: ${carrierHints.join(' · ')}`
+      : ''
     return (
-      'EasyPost returned no shipping rates for this address. In your EasyPost account, connect a USPS ' +
-      'and/or UPS carrier account, add a payment method for postage, and confirm your company ship-from ' +
-      'address is complete in the portal settings.'
+      'EasyPost returned no shipping rates for this address. Confirm the customer ship-to address ' +
+      'and your fulfillment (ship-from) address under Profile are complete and deliverable, then try again.' +
+      hint
     )
   }
   return (
@@ -702,22 +733,11 @@ export async function buyPartnerLabel(params: {
   if (!apiKey) {
     return {
       ok: false,
-      error:
-        'Add your EasyPost API key in Payments / Profile so customer labels bill your EasyPost account.',
+      error: 'Company EasyPost is not configured. Contact Purely Eve support.',
     }
   }
 
-  const fromPayload = {
-    name: params.from.name || '',
-    company: params.from.company || params.from.name || '',
-    phone: params.from.phone || '',
-    street1: params.from.street1,
-    street2: params.from.street2 || '',
-    city: params.from.city,
-    state: params.from.state,
-    zip: params.from.zip,
-    country: params.from.country || 'US',
-  }
+  const fromPayload = easypostFromAddress(params.from)
 
   if (!fromPayload.street1 || !fromPayload.city || !fromPayload.state || !fromPayload.zip) {
     return {

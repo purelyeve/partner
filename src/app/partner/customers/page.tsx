@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui'
 import { requireDistributor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { formatDate } from '@/lib/utils'
+import { formatDate, trackingUrl } from '@/lib/utils'
 import DeleteCustomerButton from './delete-customer-button'
 
 export default async function PartnerCustomersPage({
@@ -40,12 +40,12 @@ export default async function PartnerCustomersPage({
   const { data: customers } = await query
 
   const customerIds = (customers ?? []).map((c) => c.id)
-  const trackingByCustomer = new Map<string, string>()
+  const trackingByCustomer = new Map<string, { code: string; carrier: string }>()
 
   if (customerIds.length) {
     const { data: paid } = await supabase
       .from('invoices')
-      .select('customer_id, tracking_code, paid_at, fulfilled_at')
+      .select('customer_id, tracking_code, shipping_carrier, paid_at, fulfilled_at')
       .eq('distributor_id', distributor.id)
       .in('customer_id', customerIds)
       .eq('status', 'paid')
@@ -55,7 +55,10 @@ export default async function PartnerCustomersPage({
     for (const inv of paid ?? []) {
       if (!inv.customer_id || !inv.tracking_code) continue
       if (!trackingByCustomer.has(inv.customer_id)) {
-        trackingByCustomer.set(inv.customer_id, inv.tracking_code)
+        trackingByCustomer.set(inv.customer_id, {
+          code: inv.tracking_code,
+          carrier: inv.shipping_carrier || '',
+        })
       }
     }
   }
@@ -139,7 +142,20 @@ export default async function PartnerCustomersPage({
                     {[c.billing_city, c.billing_state].filter(Boolean).join(', ')}
                   </td>
                   <td className="p-3 font-mono text-xs">
-                    {trackingByCustomer.get(c.id) || '—'}
+                    {(() => {
+                      const t = trackingByCustomer.get(c.id)
+                      if (!t) return '—'
+                      return (
+                        <a
+                          href={trackingUrl(t.carrier, t.code)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline text-pe-brown"
+                        >
+                          {t.code}
+                        </a>
+                      )
+                    })()}
                   </td>
                   <td className="p-3">{c.resale_certificate_number ? 'On file' : '—'}</td>
                   <td className="p-3">{formatDate(c.created_at)}</td>

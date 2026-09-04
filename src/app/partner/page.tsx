@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { Alert, Badge, Button, Card } from '@/components/ui'
 import { requireDistributor, onboardingStep, canPurchasePackages } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { formatCurrency, formatDate, applicationStatusLabel } from '@/lib/utils'
+import { formatCurrency, formatDate, applicationStatusLabel, trackingUrl } from '@/lib/utils'
 import { CONSUMER_SERUM_SKU, LOW_STOCK_THRESHOLD } from '@/lib/constants'
 
 export default async function PartnerDashboardPage() {
@@ -224,7 +224,14 @@ export default async function PartnerDashboardPage() {
                     <td className="p-3 text-sm">
                       {o.tracking_code ? (
                         <span>
-                          {o.tracking_code}
+                          <a
+                            href={trackingUrl(o.shipping_carrier, o.tracking_code)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline"
+                          >
+                            {o.tracking_code}
+                          </a>
                           {(o.shipping_carrier || o.shipping_service) && (
                             <span className="block text-xs text-pe-brown mt-0.5">
                               {[o.shipping_carrier, o.shipping_service].filter(Boolean).join(' ')}

@@ -207,6 +207,7 @@ export async function getInvoiceShippingRatesAction(formData: FormData) {
   const from = ctx.distributor.fulfillment_same_as_mailing
     ? {
         name: ctx.profile.full_name || ctx.distributor.business_name || 'Partner',
+        company: ctx.distributor.business_name || '',
         phone: ctx.profile.phone || '',
         street1: ctx.distributor.mailing_line1,
         street2: ctx.distributor.mailing_line2,
@@ -217,6 +218,7 @@ export async function getInvoiceShippingRatesAction(formData: FormData) {
       }
     : {
         name: ctx.profile.full_name || ctx.distributor.business_name || 'Partner',
+        company: ctx.distributor.business_name || '',
         phone: ctx.profile.phone || '',
         street1: ctx.distributor.fulfillment_line1,
         street2: ctx.distributor.fulfillment_line2,

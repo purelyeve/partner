@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { Badge, Card } from '@/components/ui'
 import { requireDistributor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate, trackingUrl } from '@/lib/utils'
 
 export default async function PartnerFulfillmentsPage({
   searchParams,
@@ -16,7 +16,7 @@ export default async function PartnerFulfillmentsPage({
   let query = supabase
     .from('invoices')
     .select(
-      'id, invoice_number, status, total_cents, paid_at, fulfilled_at, tracking_code, customer_name_snapshot, refunded_at',
+      'id, invoice_number, status, total_cents, paid_at, fulfilled_at, tracking_code, shipping_carrier, customer_name_snapshot, refunded_at',
     )
     .eq('distributor_id', distributor.id)
     .in('status', ['paid', 'cancelled'])
@@ -106,7 +106,16 @@ export default async function PartnerFulfillmentsPage({
                               : o.status}
                       </Badge>
                       {o.tracking_code ? (
-                        <p className="text-xs text-pe-brown mt-1">{o.tracking_code}</p>
+                        <p className="text-xs mt-1">
+                          <a
+                            href={trackingUrl(o.shipping_carrier, o.tracking_code)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline text-pe-brown"
+                          >
+                            {o.tracking_code}
+                          </a>
+                        </p>
                       ) : null}
                     </td>
                     <td className="p-3 text-right">

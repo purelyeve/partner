@@ -39,7 +39,8 @@ export function FulfillOrderButton({ invoiceId }: { invoiceId: string }) {
         {pending ? 'Buying label…' : 'Buy label & mark shipped'}
       </Button>
       <p className="text-xs text-pe-brown">
-        Postage is charged to your EasyPost account. The customer receives a tracking email.
+        Postage is covered by the shipping the customer already paid. The customer receives a
+        tracking email.
       </p>
     </div>
   )

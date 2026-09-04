@@ -94,6 +94,23 @@ export function customerTypeLabel(type: string): string {
   return type
 }
 
+/** Public carrier tracking page for a label. Falls back to a Google search. */
+export function trackingUrl(carrier: string | null | undefined, trackingCode: string): string {
+  const code = trackingCode.trim()
+  const encoded = encodeURIComponent(code)
+  const c = (carrier || '').toLowerCase()
+  if (c.includes('usps') || /^9\d{19,21}$/.test(code) || /^94\d{20}$/.test(code)) {
+    return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encoded}`
+  }
+  if (c.includes('ups') || /^1z/i.test(code)) {
+    return `https://www.ups.com/track?tracknum=${encoded}`
+  }
+  if (c.includes('fedex')) {
+    return `https://www.fedex.com/fedextrack/?trknbr=${encoded}`
+  }
+  return `https://www.google.com/search?q=${encoded}+tracking`
+}
+
 /** Discount off product subtotal only (not shipping/tax). */
 export function computeDiscountCents(
   subtotalCents: number,

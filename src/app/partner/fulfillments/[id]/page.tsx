@@ -8,6 +8,7 @@ import {
   formatCurrency,
   formatDate,
   invoiceStatusLabel,
+  trackingUrl,
 } from '@/lib/utils'
 import {
   FulfillOrderButton,
@@ -110,7 +111,19 @@ export default async function PartnerFulfillmentDetailPage({
           </p>
           {invoice.paid_at && <p>Paid: {formatDate(invoice.paid_at)}</p>}
           {invoice.fulfilled_at && <p>Shipped: {formatDate(invoice.fulfilled_at)}</p>}
-          {invoice.tracking_code && <p>Tracking: {invoice.tracking_code}</p>}
+          {invoice.tracking_code && (
+            <p>
+              Tracking:{' '}
+              <a
+                href={trackingUrl(invoice.shipping_carrier, invoice.tracking_code)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                {invoice.tracking_code}
+              </a>
+            </p>
+          )}
           {invoice.refunded_at && <p>Refunded: {formatDate(invoice.refunded_at)}</p>}
         </Card>
       </div>
