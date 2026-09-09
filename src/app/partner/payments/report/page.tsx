@@ -199,16 +199,6 @@ export default async function PayoutReportPage() {
         )}
       </Card>
 
-      <Card className="text-sm text-pe-brown space-y-2">
-        <h2 className="text-lg text-pe-dark-brown">Example from a $185.34 order</h2>
-        <p>
-          Customer paid $185.34. Shipping $6.44 goes to Purely Eve. Product + tax left for you:
-          $178.90. Stripe&apos;s fee on the $185.34 charge is about $5.67 (2.9% + $0.30). Your net is
-          about $173.23 — which matches Stripe&apos;s balance row. The old report showed $12.11 as
-          one &quot;Stripe fee&quot; because it combined the $5.67 processing fee with the $6.44
-          shipping transfer.
-        </p>
-      </Card>
     </div>
   )
 }
