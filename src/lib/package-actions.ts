@@ -26,6 +26,7 @@ export async function adminSavePackageAction(
   let imagePath = String(formData.get('imagePath') ?? '').trim()
   const sortOrder = Number(formData.get('sortOrder') ?? 0)
   const isActive = formData.get('isActive') === 'on'
+  const visibleToAll = formData.get('visibleToAll') === 'on'
   const imageFile = formData.get('imageFile') as File | null
 
   if (!sku || !name) return { error: 'SKU and name are required.' }
@@ -71,18 +72,44 @@ export async function adminSavePackageAction(
     image_path: imagePath,
     sort_order: sortOrder,
     is_active: isActive,
+    visible_to_all: visibleToAll,
   }
 
+  let packageId = id
   if (id) {
+    const { data: previous } = await admin
+      .from('inventory_packages')
+      .select('visible_to_all')
+      .eq('id', id)
+      .single()
     const { error } = await admin.from('inventory_packages').update(payload).eq('id', id)
     if (error) return { error: error.message }
+
+    if (previous?.visible_to_all && !visibleToAll) {
+      const { data: dists } = await admin
+        .from('distributors')
+        .select('id')
+        .eq('application_status', 'approved')
+      if (dists?.length) {
+        await admin.from('distributor_package_assignments').upsert(
+          dists.map((d) => ({ distributor_id: d.id, package_id: id })),
+          { onConflict: 'distributor_id,package_id' },
+        )
+      }
+    }
   } else {
-    const { error } = await admin.from('inventory_packages').insert(payload)
+    const { data: created, error } = await admin
+      .from('inventory_packages')
+      .insert(payload)
+      .select('id')
+      .single()
     if (error) return { error: error.message }
+    packageId = created.id
   }
 
   revalidatePath('/admin/products')
   revalidatePath('/partner/packages')
+  if (packageId) revalidatePath(`/admin/products/packages/${packageId}`)
   return { success: true, message: id ? 'Package updated.' : 'Package created.' }
 }
 
@@ -127,4 +154,36 @@ export async function adminDeletePackageAction(
   revalidatePath('/admin/products')
   revalidatePath('/partner/packages')
   redirect('/admin/products')
+}
+
+export async function adminTogglePackageAssignmentAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin()
+  const packageId = String(formData.get('packageId') ?? '')
+  const distributorId = String(formData.get('distributorId') ?? '')
+  const assign = formData.get('assign') === '1'
+
+  if (!packageId || !distributorId) return { error: 'Missing package or distributor.' }
+
+  const admin = createAdminClient()
+  if (assign) {
+    const { error } = await admin.from('distributor_package_assignments').upsert(
+      { package_id: packageId, distributor_id: distributorId },
+      { onConflict: 'distributor_id,package_id' },
+    )
+    if (error) return { error: error.message }
+  } else {
+    const { error } = await admin
+      .from('distributor_package_assignments')
+      .delete()
+      .eq('package_id', packageId)
+      .eq('distributor_id', distributorId)
+    if (error) return { error: error.message }
+  }
+
+  revalidatePath(`/admin/products/packages/${packageId}`)
+  revalidatePath('/partner/packages')
+  return { success: true, message: assign ? 'Partner can see this package.' : 'Partner removed.' }
 }

@@ -35,6 +35,7 @@ export default async function AdminProductDetailPage({
     .eq('product_id', id)
 
   const assignedIds = new Set((assignments ?? []).map((a) => a.distributor_id))
+  const visibleToAll = product.visible_to_all !== false
 
   return (
     <div className="space-y-10">
@@ -49,49 +50,58 @@ export default async function AdminProductDetailPage({
       <ProductForm product={product} />
 
       <section className="space-y-4">
-        <h2 className="text-xl">Partner assignments</h2>
-        <p className="text-sm text-pe-brown">
-          New products are assigned to all Partners by default. Remove access here if needed.
-        </p>
-        {!distributors?.length ? (
-          <p className="text-sm text-pe-brown">No approved Partners yet.</p>
+        <h2 className="text-xl">Partner visibility</h2>
+        {visibleToAll ? (
+          <p className="text-sm text-pe-brown">
+            This product is visible to all Partners. Uncheck &quot;Visible to all Partners&quot; above
+            and save to choose specific Partners.
+          </p>
         ) : (
-          <div className="border border-pe-beige bg-white rounded-sm overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-pe-cream text-left">
-                <tr>
-                  <th className="p-3">Partner</th>
-                  <th className="p-3">Contact</th>
-                  <th className="p-3">Assigned</th>
-                  <th className="p-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {distributors.map((d) => {
-                  const p = asProfile(d.profiles)
-                  const assigned = assignedIds.has(d.id)
-                  return (
-                    <tr key={d.id} className="border-t border-pe-beige">
-                      <td className="p-3">{d.business_name?.trim() || 'Personal'}</td>
-                      <td className="p-3">
-                        {p.full_name}
-                        <br />
-                        <span className="text-pe-brown">{p.email}</span>
-                      </td>
-                      <td className="p-3">{assigned ? 'Yes' : 'No'}</td>
-                      <td className="p-3 text-right">
-                        <AssignmentToggle
-                          productId={product.id}
-                          distributorId={d.id}
-                          assigned={assigned}
-                        />
-                      </td>
+          <>
+            <p className="text-sm text-pe-brown">
+              Only assigned Partners can sell this product on invoices.
+            </p>
+            {!distributors?.length ? (
+              <p className="text-sm text-pe-brown">No approved Partners yet.</p>
+            ) : (
+              <div className="border border-pe-beige bg-white rounded-sm overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-pe-cream text-left">
+                    <tr>
+                      <th className="p-3">Partner</th>
+                      <th className="p-3">Contact</th>
+                      <th className="p-3">Assigned</th>
+                      <th className="p-3" />
                     </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody>
+                    {distributors.map((d) => {
+                      const p = asProfile(d.profiles)
+                      const assigned = assignedIds.has(d.id)
+                      return (
+                        <tr key={d.id} className="border-t border-pe-beige">
+                          <td className="p-3">{d.business_name?.trim() || 'Personal'}</td>
+                          <td className="p-3">
+                            {p.full_name}
+                            <br />
+                            <span className="text-pe-brown">{p.email}</span>
+                          </td>
+                          <td className="p-3">{assigned ? 'Yes' : 'No'}</td>
+                          <td className="p-3 text-right">
+                            <AssignmentToggle
+                              productId={product.id}
+                              distributorId={d.id}
+                              assigned={assigned}
+                            />
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
       </section>
     </div>

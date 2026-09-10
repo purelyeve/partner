@@ -191,8 +191,25 @@ export default function PackageForm({ pkg }: { pkg?: InventoryPackage }) {
                 defaultChecked={pkg?.is_active ?? true}
               />
               <Label htmlFor="isActive" className="mb-0">
-                Active (visible to Partners on Packages)
+                Active (in catalog)
               </Label>
+            </div>
+            <div className="sm:col-span-2 flex items-start gap-2">
+              <input
+                id="visibleToAll"
+                name="visibleToAll"
+                type="checkbox"
+                className="mt-1"
+                defaultChecked={pkg?.visible_to_all ?? true}
+              />
+              <div>
+                <Label htmlFor="visibleToAll" className="mb-0">
+                  Visible to all Partners
+                </Label>
+                <p className="text-xs text-pe-brown mt-1">
+                  Uncheck to choose specific Partners on this package&apos;s page after saving.
+                </p>
+              </div>
             </div>
           </div>
         </Card>

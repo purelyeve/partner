@@ -79,6 +79,7 @@ export interface InventoryPackage {
   box_count?: number
   image_path: string
   is_active: boolean
+  visible_to_all?: boolean
   sort_order: number
 }
 
@@ -147,6 +148,7 @@ export interface Product {
   weight_oz: number
   image_path: string
   is_active: boolean
+  visible_to_all?: boolean
   sort_order: number
   created_at?: string
 }

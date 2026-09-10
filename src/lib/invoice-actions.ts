@@ -421,8 +421,10 @@ export async function partnerCreateInvoiceAction(
   let sort = 0
   for (const line of lines) {
     const product = productMap.get(line.productId)
-    if (!product || !assigned.has(line.productId)) {
-      return { error: 'One or more products are not assigned to your account.' }
+    const allowed =
+      product && (product.visible_to_all !== false || assigned.has(line.productId))
+    if (!product || !allowed) {
+      return { error: 'One or more products are not available on your account.' }
     }
     const qty = Math.max(1, Math.round(line.quantity))
     const unit =

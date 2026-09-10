@@ -23,6 +23,7 @@ export async function adminSaveProductAction(
   let imagePath = String(formData.get('imagePath') ?? '').trim()
   const sortOrder = Number(formData.get('sortOrder') ?? 0)
   const isActive = formData.get('isActive') === 'on'
+  const visibleToAll = formData.get('visibleToAll') === 'on'
   const imageFile = formData.get('imageFile') as File | null
 
   if (!sku || !name) return { error: 'SKU and name are required.' }
@@ -60,17 +61,40 @@ export async function adminSaveProductAction(
     image_path: imagePath,
     sort_order: sortOrder,
     is_active: isActive,
+    visible_to_all: visibleToAll,
   }
 
+  let productId = id
   if (id) {
+    const { data: previous } = await admin
+      .from('products')
+      .select('visible_to_all')
+      .eq('id', id)
+      .single()
     const { error } = await admin.from('products').update(payload).eq('id', id)
     if (error) return { error: error.message }
+
+    // Switching from all → selected: seed every approved Partner so nothing vanishes.
+    if (previous?.visible_to_all && !visibleToAll) {
+      const { data: dists } = await admin
+        .from('distributors')
+        .select('id')
+        .eq('application_status', 'approved')
+      if (dists?.length) {
+        await admin.from('distributor_product_assignments').upsert(
+          dists.map((d) => ({ distributor_id: d.id, product_id: id })),
+          { onConflict: 'distributor_id,product_id' },
+        )
+      }
+    }
   } else {
-    const { error } = await admin.from('products').insert(payload)
+    const { data: created, error } = await admin.from('products').insert(payload).select('id').single()
     if (error) return { error: error.message }
+    productId = created.id
   }
 
   revalidatePath('/admin/products')
+  if (productId) revalidatePath(`/admin/products/${productId}`)
   return { success: true, message: id ? 'Product updated.' : 'Product created.' }
 }
 

@@ -95,6 +95,9 @@ export default async function AdminProductsPage() {
                       <Badge tone={p.is_active ? 'success' : 'neutral'}>
                         {p.is_active ? 'Active' : 'Inactive'}
                       </Badge>
+                      <span className="block text-xs text-pe-brown mt-1">
+                        {p.visible_to_all !== false ? 'All Partners' : 'Selected Partners'}
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -169,6 +172,9 @@ export default async function AdminProductsPage() {
                       <Badge tone={pkg.is_active ? 'success' : 'neutral'}>
                         {pkg.is_active ? 'Active' : 'Inactive'}
                       </Badge>
+                      <span className="block text-xs text-pe-brown mt-1">
+                        {pkg.visible_to_all !== false ? 'All Partners' : 'Selected Partners'}
+                      </span>
                     </td>
                   </tr>
                 ))}

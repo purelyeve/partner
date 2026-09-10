@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, useActionState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { Alert, Button, Card, Label } from '@/components/ui'
 import { cn, formatCurrency } from '@/lib/utils'
@@ -22,7 +23,10 @@ export function PackageCheckout({
   const [selectedRate, setSelectedRate] = useState<ShippingRate | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [ratesPending, startTransition] = useTransition()
-  const [checkoutState, checkoutAction, checkoutPending] = useActionState(createPackageCheckoutAction, null)
+  const [checkoutState, checkoutAction, checkoutPending] = useActionState(
+    createPackageCheckoutAction,
+    null,
+  )
 
   function loadRates(pkg: InventoryPackage) {
     setSelectedPkg(pkg)
@@ -63,6 +67,14 @@ export function PackageCheckout({
     )
   }
 
+  if (!packages.length) {
+    return (
+      <p className="text-sm text-pe-brown">
+        No inventory packages are available for your account yet.
+      </p>
+    )
+  }
+
   return (
     <div className="space-y-8">
       <div className="grid sm:grid-cols-2 gap-6">
@@ -72,24 +84,46 @@ export function PackageCheckout({
             <Card
               key={pkg.id}
               className={cn(
-                'flex flex-col h-full transition-shadow',
+                'flex flex-col h-full transition-shadow overflow-hidden p-0',
                 isSelected && 'ring-2 ring-pe-gold shadow-sm',
               )}
             >
-              <p className="text-xs text-pe-gold tracking-wider uppercase mb-1">{pkg.sku}</p>
-              <h2 className="text-xl mb-2">{pkg.name}</h2>
-              <p className="text-sm text-pe-brown mb-4 flex-1">{pkg.description}</p>
-              <p className="text-lg font-serif mb-1">{formatCurrency(pkg.price_cents)} + shipping</p>
-              <p className="text-xs text-pe-brown mb-4">{pkg.unit_count} units · tax exempt (wholesale)</p>
-              <Button
-                type="button"
-                variant={isSelected ? 'primary' : 'secondary'}
-                onClick={() => loadRates(pkg)}
-                disabled={ratesPending}
-                className="w-full sm:w-auto"
-              >
-                {ratesPending && isSelected ? 'Loading rates…' : isSelected ? 'Selected' : 'Select package'}
-              </Button>
+              {pkg.image_path ? (
+                <div className="relative w-full aspect-[4/3] bg-pe-cream">
+                  <Image
+                    src={pkg.image_path}
+                    alt={pkg.name}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 640px) 100vw, 50vw"
+                    unoptimized={pkg.image_path.startsWith('http')}
+                  />
+                </div>
+              ) : null}
+              <div className="p-5 flex flex-col flex-1">
+                <p className="text-xs text-pe-gold tracking-wider uppercase mb-1">{pkg.sku}</p>
+                <h2 className="text-xl mb-2">{pkg.name}</h2>
+                <p className="text-sm text-pe-brown mb-4 flex-1">{pkg.description}</p>
+                <p className="text-lg font-serif mb-1">
+                  {formatCurrency(pkg.price_cents)} + shipping
+                </p>
+                <p className="text-xs text-pe-brown mb-4">
+                  {pkg.unit_count} units · tax exempt (wholesale)
+                </p>
+                <Button
+                  type="button"
+                  variant={isSelected ? 'primary' : 'secondary'}
+                  onClick={() => loadRates(pkg)}
+                  disabled={ratesPending}
+                  className="w-full sm:w-auto"
+                >
+                  {ratesPending && isSelected
+                    ? 'Loading rates…'
+                    : isSelected
+                      ? 'Selected'
+                      : 'Select package'}
+                </Button>
+              </div>
             </Card>
           )
         })}
@@ -151,7 +185,9 @@ export function PackageCheckout({
               <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                 <div className="text-sm text-pe-brown space-y-1">
                   <p>{selectedPkg.name}</p>
-                  <p>{selectedRate.carrier} — {selectedRate.service}</p>
+                  <p>
+                    {selectedRate.carrier} — {selectedRate.service}
+                  </p>
                 </div>
                 <p className="text-lg font-serif text-pe-dark-brown">
                   {formatCurrency(selectedPkg.price_cents + selectedRate.rateCents)}
@@ -172,7 +208,9 @@ export function PackageCheckout({
 export function PackagesPageHeader() {
   return (
     <div>
-      <Link href="/partner" className="text-sm">← Dashboard</Link>
+      <Link href="/partner" className="text-sm">
+        ← Dashboard
+      </Link>
       <h1 className="text-3xl mt-2">Inventory packages</h1>
       <p className="text-sm text-pe-brown mt-1">
         Opening inventory is required to begin reselling. Orders are prepaid and tax-exempt.

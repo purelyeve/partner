@@ -26,6 +26,7 @@ import {
 } from '@/lib/easypost'
 import { getStripe } from '@/lib/stripe'
 import { fulfillmentAddress, hasCompleteShipToAddress } from '@/lib/auth'
+import { partnerCanAccessPackage } from '@/lib/catalog-visibility'
 import type { ApplicationStatus, DocumentStatus } from '@/lib/types'
 
 const RESALE_MIME = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'])
@@ -600,6 +601,9 @@ export async function getShippingRatesAction(formData: FormData) {
 
   if (!pkg) return { error: 'Package not found' }
 
+  const allowed = await partnerCanAccessPackage(supabase, distributor.id, packageId)
+  if (!allowed) return { error: 'This package is not available on your account.' }
+
   const addr = fulfillmentAddress(distributor)
   const result = await getPackageShippingRates({
     to: {
@@ -664,6 +668,9 @@ export async function createPackageCheckoutAction(_prev: ActionState, formData: 
     .single()
 
   if (!pkg) return { error: 'Package not found' }
+
+  const allowed = await partnerCanAccessPackage(supabase, distributor.id, packageId)
+  if (!allowed) return { error: 'This package is not available on your account.' }
 
   const addr = fulfillmentAddress(distributor)
   const subtotal = pkg.price_cents
