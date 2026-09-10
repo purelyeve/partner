@@ -239,6 +239,29 @@ export async function getConnectBalanceSummary(stripeAccountId: string): Promise
   }
 }
 
+/** Platform (company) Stripe balance — not a connected Partner account. */
+export async function getPlatformBalanceSummary(): Promise<{
+  availableCents: number
+  pendingCents: number
+  currency: string
+} | null> {
+  const stripe = getStripe()
+  try {
+    const balance = await stripe.balance.retrieve()
+    const currency = balance.available[0]?.currency ?? balance.pending[0]?.currency ?? 'usd'
+    const availableCents = balance.available
+      .filter((b) => b.currency === currency)
+      .reduce((sum, b) => sum + b.amount, 0)
+    const pendingCents = balance.pending
+      .filter((b) => b.currency === currency)
+      .reduce((sum, b) => sum + b.amount, 0)
+    return { availableCents, pendingCents, currency }
+  } catch (err) {
+    console.error('[platform] balance.retrieve', err)
+    return null
+  }
+}
+
 export async function listConnectPayouts(
   stripeAccountId: string,
   limit = 10,

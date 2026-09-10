@@ -5,7 +5,7 @@ import { requireAdmin } from '@/lib/auth'
 import { DISTRIBUTOR_PROFILE } from '@/lib/constants'
 import type { Profile } from '@/lib/types'
 import ProductForm from '../product-form'
-import AssignmentToggle from '../assignment-toggle'
+import PartnerAssignmentPanel from '../partner-assignment-panel'
 
 function asProfile(value: unknown): Profile {
   return value as Profile
@@ -37,6 +37,17 @@ export default async function AdminProductDetailPage({
   const assignedIds = new Set((assignments ?? []).map((a) => a.distributor_id))
   const visibleToAll = product.visible_to_all !== false
 
+  const partnerRows = (distributors ?? []).map((d) => {
+    const p = asProfile(d.profiles)
+    return {
+      id: d.id,
+      businessName: d.business_name?.trim() || 'Personal',
+      contactName: p.full_name || '',
+      email: p.email || '',
+      assigned: assignedIds.has(d.id),
+    }
+  })
+
   return (
     <div className="space-y-10">
       <div>
@@ -54,54 +65,16 @@ export default async function AdminProductDetailPage({
         {visibleToAll ? (
           <p className="text-sm text-pe-brown">
             This product is visible to all Partners. Uncheck &quot;Visible to all Partners&quot; above
-            and save to choose specific Partners.
+            and save to choose specific Partners. After you uncheck it, no Partners are selected until
+            you assign them.
           </p>
         ) : (
-          <>
-            <p className="text-sm text-pe-brown">
-              Only assigned Partners can sell this product on invoices.
-            </p>
-            {!distributors?.length ? (
-              <p className="text-sm text-pe-brown">No approved Partners yet.</p>
-            ) : (
-              <div className="border border-pe-beige bg-white rounded-sm overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-pe-cream text-left">
-                    <tr>
-                      <th className="p-3">Partner</th>
-                      <th className="p-3">Contact</th>
-                      <th className="p-3">Assigned</th>
-                      <th className="p-3" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {distributors.map((d) => {
-                      const p = asProfile(d.profiles)
-                      const assigned = assignedIds.has(d.id)
-                      return (
-                        <tr key={d.id} className="border-t border-pe-beige">
-                          <td className="p-3">{d.business_name?.trim() || 'Personal'}</td>
-                          <td className="p-3">
-                            {p.full_name}
-                            <br />
-                            <span className="text-pe-brown">{p.email}</span>
-                          </td>
-                          <td className="p-3">{assigned ? 'Yes' : 'No'}</td>
-                          <td className="p-3 text-right">
-                            <AssignmentToggle
-                              productId={product.id}
-                              distributorId={d.id}
-                              assigned={assigned}
-                            />
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
+          <PartnerAssignmentPanel
+            partners={partnerRows}
+            entityLabel="product"
+            entityType="product"
+            entityId={product.id}
+          />
         )}
       </section>
     </div>

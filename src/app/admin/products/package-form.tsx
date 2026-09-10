@@ -207,7 +207,8 @@ export default function PackageForm({ pkg }: { pkg?: InventoryPackage }) {
                   Visible to all Partners
                 </Label>
                 <p className="text-xs text-pe-brown mt-1">
-                  Uncheck to choose specific Partners on this package&apos;s page after saving.
+                  Uncheck to choose specific Partners. After unchecking, no one is selected until you
+                  assign them.
                 </p>
               </div>
             </div>

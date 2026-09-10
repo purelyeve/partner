@@ -77,26 +77,8 @@ export async function adminSavePackageAction(
 
   let packageId = id
   if (id) {
-    const { data: previous } = await admin
-      .from('inventory_packages')
-      .select('visible_to_all')
-      .eq('id', id)
-      .single()
     const { error } = await admin.from('inventory_packages').update(payload).eq('id', id)
     if (error) return { error: error.message }
-
-    if (previous?.visible_to_all && !visibleToAll) {
-      const { data: dists } = await admin
-        .from('distributors')
-        .select('id')
-        .eq('application_status', 'approved')
-      if (dists?.length) {
-        await admin.from('distributor_package_assignments').upsert(
-          dists.map((d) => ({ distributor_id: d.id, package_id: id })),
-          { onConflict: 'distributor_id,package_id' },
-        )
-      }
-    }
   } else {
     const { data: created, error } = await admin
       .from('inventory_packages')
