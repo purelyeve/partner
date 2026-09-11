@@ -14,6 +14,7 @@ import { appUrl } from '@/lib/email'
 import ResendInvoiceButton from '../resend-button'
 import CancelUnpaidButton from '../cancel-unpaid-button'
 import DeleteInvoiceButton from '../delete-invoice-button'
+import { RefundOrderForm } from '../../orders/order-actions'
 
 export default async function InvoiceDetailPage({
   params,
@@ -97,6 +98,17 @@ export default async function InvoiceDetailPage({
           Paid.{' '}
           <Link href={`/partner/fulfillments/${invoice.id}`}>Open fulfillment / refund →</Link>
         </Alert>
+      )}
+
+      {invoice.status === 'paid' && !invoice.refunded_at && (
+        <Card className="space-y-4">
+          <h2 className="text-lg">Refund / cancel paid order</h2>
+          <p className="text-sm text-pe-brown">
+            Refunds the customer through Stripe and restores inventory. You can also do this from
+            Fulfillments.
+          </p>
+          <RefundOrderForm invoiceId={invoice.id} />
+        </Card>
       )}
 
       {invoice.status === 'cancelled' && invoice.refunded_at && (

@@ -65,13 +65,25 @@ export async function adminSaveProductAction(
   }
 
   let productId = id
+  let wasVisibleToAll = true
   if (id) {
+    const { data: prev } = await admin
+      .from('products')
+      .select('visible_to_all')
+      .eq('id', id)
+      .maybeSingle()
+    wasVisibleToAll = prev?.visible_to_all !== false
     const { error } = await admin.from('products').update(payload).eq('id', id)
     if (error) return { error: error.message }
   } else {
     const { data: created, error } = await admin.from('products').insert(payload).select('id').single()
     if (error) return { error: error.message }
     productId = created.id
+  }
+
+  // Switching off "visible to all" starts with nobody assigned (clears old seed rows).
+  if (!visibleToAll && wasVisibleToAll && productId) {
+    await admin.from('distributor_product_assignments').delete().eq('product_id', productId)
   }
 
   revalidatePath('/admin/products')
@@ -133,6 +145,25 @@ export async function adminToggleProductAssignmentAction(
 
   revalidatePath(`/admin/products/${productId}`)
   return { success: true }
+}
+
+export async function adminClearProductAssignmentsAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin()
+  const productId = String(formData.get('productId') ?? '')
+  if (!productId) return { error: 'Missing product.' }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('distributor_product_assignments')
+    .delete()
+    .eq('product_id', productId)
+  if (error) return { error: error.message }
+
+  revalidatePath(`/admin/products/${productId}`)
+  return { success: true, message: 'All Partners removed. Assign only who should see this product.' }
 }
 
 export async function partnerAdjustInventoryAction(

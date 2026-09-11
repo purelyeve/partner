@@ -6,7 +6,7 @@ import { getPlatformBalanceSummary } from '@/lib/stripe-connect'
 import { getStripe } from '@/lib/stripe'
 import { inPaidWindow, resolvePeriod } from '@/lib/admin-reports'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { FilterField, ReportFilters, SummaryCards } from '../report-ui'
+import { ExportReportButton, FilterField, ReportFilters, SummaryCards } from '../report-ui'
 
 type FeeDetail = { type: string; amount: number; description: string | null }
 
@@ -101,12 +101,22 @@ export default async function CompanyStripeReportPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl">Company Stripe</h1>
-        <p className="text-sm text-pe-brown mt-1">
-          Platform account balance, shipping application fees from Partner checkouts, inventory
-          package sales on the company account, and recent payouts.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl">Company Stripe</h1>
+          <p className="text-sm text-pe-brown mt-1">
+            Platform account balance, shipping application fees from Partner checkouts, inventory
+            package sales on the company account, and recent payouts.
+          </p>
+        </div>
+        <ExportReportButton
+          report="stripe"
+          searchParams={{
+            from: params.from,
+            to: params.to,
+            period: params.period,
+          }}
+        />
       </div>
 
       <SummaryCards

@@ -10,7 +10,9 @@ export async function GET(request: Request) {
   const period = url.searchParams.get('period') ?? undefined
   const from = url.searchParams.get('from') ?? undefined
   const to = url.searchParams.get('to') ?? undefined
+  const kind = url.searchParams.get('kind') ?? 'sales'
   const { fromIso, toIso } = resolvePeriod({ period, from, to })
+  const stamp = new Date().toISOString().slice(0, 10)
 
   const supabase = await createClient()
   const { data: invoices } = await supabase
@@ -25,6 +27,26 @@ export async function GET(request: Request) {
     .limit(5000)
 
   const filtered = (invoices ?? []).filter((i) => inPaidWindow(i.paid_at, fromIso, toIso))
+
+  if (kind === 'tax-by-state') {
+    const byState = new Map<string, { tax: number; count: number }>()
+    for (const inv of filtered) {
+      if (!(inv.tax_cents > 0)) continue
+      const state = (inv.ship_to_state || '—').toUpperCase()
+      const row = byState.get(state) ?? { tax: 0, count: 0 }
+      row.tax += inv.tax_cents ?? 0
+      row.count += 1
+      byState.set(state, row)
+    }
+    const csv = rowsToCsv(
+      ['State', 'Orders with tax', 'Tax'],
+      Array.from(byState.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([state, row]) => [state, row.count, (row.tax / 100).toFixed(2)]),
+    )
+    return csvResponse(`partner-tax-by-state-${stamp}.csv`, csv)
+  }
+
   const csv = rowsToCsv(
     ['Paid', 'Invoice', 'Customer', 'Type', 'State', 'Subtotal', 'Shipping', 'Tax', 'Total'],
     filtered.map((i) => [
@@ -40,5 +62,5 @@ export async function GET(request: Request) {
     ]),
   )
 
-  return csvResponse(`partner-sales-${new Date().toISOString().slice(0, 10)}.csv`, csv)
+  return csvResponse(`partner-sales-${stamp}.csv`, csv)
 }

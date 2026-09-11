@@ -2,7 +2,7 @@ import { getAdminDb } from '@/lib/admin'
 import { requireAdmin } from '@/lib/auth'
 import { inPaidWindow, resolvePeriod } from '@/lib/admin-reports'
 import { formatCurrency } from '@/lib/utils'
-import { FilterField, ReportFilters, SummaryCards } from '../report-ui'
+import { ExportReportButton, FilterField, ReportFilters, SummaryCards } from '../report-ui'
 
 export default async function CustomerVolumeReportPage({
   searchParams,
@@ -40,11 +40,22 @@ export default async function CustomerVolumeReportPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl">Company-wide customer volume</h1>
-        <p className="text-sm text-pe-brown mt-1">
-          All Partner customer sales. Inventory package purchases are excluded.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl">Company-wide customer volume</h1>
+          <p className="text-sm text-pe-brown mt-1">
+            All Partner customer sales. Inventory package purchases are excluded.
+          </p>
+        </div>
+        <ExportReportButton
+          report="customer-volume"
+          searchParams={{
+            from: params.from,
+            to: params.to,
+            period: params.period,
+            type: params.type,
+          }}
+        />
       </div>
 
       <SummaryCards

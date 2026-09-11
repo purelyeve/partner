@@ -76,7 +76,14 @@ export async function adminSavePackageAction(
   }
 
   let packageId = id
+  let wasVisibleToAll = true
   if (id) {
+    const { data: prev } = await admin
+      .from('inventory_packages')
+      .select('visible_to_all')
+      .eq('id', id)
+      .maybeSingle()
+    wasVisibleToAll = prev?.visible_to_all !== false
     const { error } = await admin.from('inventory_packages').update(payload).eq('id', id)
     if (error) return { error: error.message }
   } else {
@@ -87,6 +94,11 @@ export async function adminSavePackageAction(
       .single()
     if (error) return { error: error.message }
     packageId = created.id
+  }
+
+  // Switching off "visible to all" starts with nobody assigned.
+  if (!visibleToAll && wasVisibleToAll && packageId) {
+    await admin.from('distributor_package_assignments').delete().eq('package_id', packageId)
   }
 
   revalidatePath('/admin/products')
@@ -168,4 +180,24 @@ export async function adminTogglePackageAssignmentAction(
   revalidatePath(`/admin/products/packages/${packageId}`)
   revalidatePath('/partner/packages')
   return { success: true, message: assign ? 'Partner can see this package.' : 'Partner removed.' }
+}
+
+export async function adminClearPackageAssignmentsAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin()
+  const packageId = String(formData.get('packageId') ?? '')
+  if (!packageId) return { error: 'Missing package.' }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('distributor_package_assignments')
+    .delete()
+    .eq('package_id', packageId)
+  if (error) return { error: error.message }
+
+  revalidatePath(`/admin/products/packages/${packageId}`)
+  revalidatePath('/partner/packages')
+  return { success: true, message: 'All Partners removed. Assign only who should see this package.' }
 }

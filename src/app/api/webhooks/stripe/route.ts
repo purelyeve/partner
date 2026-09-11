@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { DISTRIBUTOR_PROFILE } from '@/lib/constants'
 import { appUrl, emailShell, notifyCompany, sendEmail } from '@/lib/email'
 import { formatCurrency } from '@/lib/utils'
-import { restoreInventoryForRefundedInvoice } from '@/lib/inventory'
+import { restoreInventoryForRefundedInvoice, reverseInventoryForRefundedPackageOrder } from '@/lib/inventory'
 import { syncConnectAccountStatus } from '@/lib/stripe-connect'
 import { markCustomerInvoicePaid } from '@/lib/invoice-paid'
 import type Stripe from 'stripe'
@@ -75,6 +75,28 @@ export async function POST(request: Request) {
           await restoreInventoryForRefundedInvoice(invoice.id)
         } catch (err) {
           console.error('[webhook] restock retry failed', err)
+        }
+      }
+
+      const { data: packageOrder } = await admin
+        .from('package_orders')
+        .select('id, status, refunded_at')
+        .eq('stripe_payment_intent_id', paymentIntentId)
+        .maybeSingle()
+
+      if (packageOrder && ['paid', 'fulfilled'].includes(packageOrder.status) && !packageOrder.refunded_at) {
+        await admin
+          .from('package_orders')
+          .update({
+            status: 'cancelled',
+            refunded_at: new Date().toISOString(),
+            cancel_reason: 'Refunded via Stripe (webhook)',
+          })
+          .eq('id', packageOrder.id)
+        try {
+          await reverseInventoryForRefundedPackageOrder(packageOrder.id)
+        } catch (err) {
+          console.error('[webhook] package stock reverse failed', err)
         }
       }
     }

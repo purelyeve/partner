@@ -17,7 +17,7 @@ import {
   partnerApprovalReadyEmailHtml,
   sendEmail,
 } from '@/lib/email'
-import { generateOrderNumber } from '@/lib/utils'
+import { formatCurrency, generateOrderNumber } from '@/lib/utils'
 import {
   buyCompanyLabelsForOrder,
   createEasyPostShipmentId,
@@ -973,6 +973,163 @@ export async function adminFulfillOrderAction(_prev: ActionState, formData: Form
   revalidatePath('/admin/orders')
   revalidatePath('/admin')
   return { success: true, message: 'Order marked fulfilled.' }
+}
+
+/** Admin: cancel an unpaid inventory package order (no Stripe charge yet). */
+export async function adminCancelPackageOrderAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const orderId = String(formData.get('orderId') ?? '')
+  const reason = String(formData.get('reason') ?? '').trim()
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not signed in' }
+
+  const admin = createAdminClient()
+  const { data: profile } = await admin.from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role !== 'admin') return { error: 'Not authorized' }
+
+  const { data: order } = await admin.from('package_orders').select('*').eq('id', orderId).single()
+  if (!order) return { error: 'Order not found.' }
+  if (!['draft', 'awaiting_payment'].includes(order.status)) {
+    return { error: 'Only unpaid package orders can be cancelled this way. Use Refund for paid orders.' }
+  }
+
+  await admin
+    .from('package_orders')
+    .update({
+      status: 'cancelled',
+      cancel_reason: reason.slice(0, 500) || 'Cancelled by admin before payment',
+    })
+    .eq('id', orderId)
+
+  await logAudit({
+    actorId: user.id,
+    action: 'package_order_cancelled',
+    entityType: 'package_order',
+    entityId: orderId,
+    detail: { reason },
+  })
+
+  revalidatePath('/admin/orders')
+  return { success: true, message: 'Package order cancelled.' }
+}
+
+/**
+ * Admin: refund a paid (or fulfilled) inventory package order on the company Stripe account
+ * and reverse the stock that was credited to the Partner.
+ */
+export async function adminRefundPackageOrderAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const orderId = String(formData.get('orderId') ?? '')
+  const reason = String(formData.get('reason') ?? '').trim()
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not signed in' }
+
+  const admin = createAdminClient()
+  const { data: profile } = await admin.from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role !== 'admin') return { error: 'Not authorized' }
+
+  const { data: order } = await admin
+    .from('package_orders')
+    .select(`*, distributors(${DISTRIBUTOR_PROFILE}(email, full_name))`)
+    .eq('id', orderId)
+    .single()
+
+  if (!order) return { error: 'Order not found.' }
+  if (!['paid', 'fulfilled'].includes(order.status)) {
+    return { error: 'Only paid or fulfilled package orders can be refunded.' }
+  }
+  if (order.refunded_at) return { error: 'This package order was already refunded.' }
+
+  const { reverseInventoryForRefundedPackageOrder } = await import('@/lib/inventory')
+
+  if (order.stripe_payment_intent_id) {
+    const stripe = getStripe()
+    try {
+      const refund = await stripe.refunds.create({
+        payment_intent: order.stripe_payment_intent_id,
+        reason: 'requested_by_customer',
+        metadata: {
+          package_order_id: order.id,
+          order_number: order.order_number,
+          cancel_reason: reason.slice(0, 200),
+        },
+      })
+
+      await admin
+        .from('package_orders')
+        .update({
+          status: 'cancelled',
+          refunded_at: new Date().toISOString(),
+          stripe_refund_id: refund.id,
+          cancel_reason: reason.slice(0, 500) || 'Refunded by admin',
+        })
+        .eq('id', orderId)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Stripe refund failed'
+      console.error('[package refund]', message)
+      return { error: message }
+    }
+  } else {
+    // Test orders created without Stripe still need stock reverse + cancel
+    await admin
+      .from('package_orders')
+      .update({
+        status: 'cancelled',
+        refunded_at: new Date().toISOString(),
+        cancel_reason: reason.slice(0, 500) || 'Cancelled/refunded by admin (no Stripe charge)',
+      })
+      .eq('id', orderId)
+  }
+
+  try {
+    await reverseInventoryForRefundedPackageOrder(orderId)
+  } catch (err) {
+    console.error('[package refund] inventory reverse', err)
+  }
+
+  const profiles = (order.distributors as { profiles: { email: string; full_name: string } } | null)
+    ?.profiles
+  if (profiles?.email) {
+    await sendEmail({
+      to: profiles.email,
+      subject: `Refund processed — order ${order.order_number}`,
+      html: emailShell(
+        'Inventory order refunded',
+        `<p>Dear ${profiles.full_name},</p>
+         <p>Your inventory package order <strong>${order.order_number}</strong> (${formatCurrency(order.total_cents)}) has been refunded.</p>
+         <p>Stock from that package has been removed from your on-hand inventory.</p>
+         <p>Funds typically return to the original payment method in a few business days.</p>`,
+      ),
+    })
+  }
+
+  await logAudit({
+    actorId: user.id,
+    action: 'package_order_refunded',
+    entityType: 'package_order',
+    entityId: orderId,
+    detail: { reason, amount: order.total_cents },
+  })
+
+  revalidatePath('/admin/orders')
+  revalidatePath('/admin')
+  revalidatePath('/admin/reports')
+  return {
+    success: true,
+    message: `Refunded ${formatCurrency(order.total_cents)} and reversed Partner stock.`,
+  }
 }
 
 /** Admin: create a Paid (unfulfilled) Starter package order for label-flow testing. */

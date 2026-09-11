@@ -6,7 +6,7 @@ import { DISTRIBUTOR_PROFILE } from '@/lib/constants'
 import { daysSince } from '@/lib/csv'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import type { Profile } from '@/lib/types'
-import { FilterField, ReportFilters, SummaryCards } from '../report-ui'
+import { ExportReportButton, FilterField, ReportFilters, SummaryCards } from '../report-ui'
 
 export default async function PackageSalesReportPage({
   searchParams,
@@ -148,11 +148,14 @@ export default async function PackageSalesReportPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl">Partner inventory package sales</h1>
-        <p className="text-sm text-pe-brown mt-1">
-          Paid package orders by Partner. Partners with no package order in 90 days are flagged.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl">Partner inventory package sales</h1>
+          <p className="text-sm text-pe-brown mt-1">
+            Paid package orders by Partner. Partners with no package order in 90 days are flagged.
+          </p>
+        </div>
+        <ExportReportButton report="package-sales" searchParams={{ q, from, to }} />
       </div>
 
       <ReportFilters action="/admin/reports/package-sales">

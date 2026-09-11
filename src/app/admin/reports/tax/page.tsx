@@ -4,7 +4,7 @@ import { DISTRIBUTOR_PROFILE } from '@/lib/constants'
 import { inPaidWindow, resolvePeriod } from '@/lib/admin-reports'
 import { formatCurrency } from '@/lib/utils'
 import type { Profile } from '@/lib/types'
-import { FilterField, ReportFilters, SummaryCards } from '../report-ui'
+import { ExportReportButton, FilterField, ReportFilters, SummaryCards } from '../report-ui'
 
 export default async function TaxReportPage({
   searchParams,
@@ -88,12 +88,32 @@ export default async function TaxReportPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl">Tax collected</h1>
-        <p className="text-sm text-pe-brown mt-1">
-          Sales tax on paid customer invoices, by Partner and ship-to state.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl">Tax collected</h1>
+          <p className="text-sm text-pe-brown mt-1">
+            Sales tax on paid customer invoices, by Partner and ship-to state.
+          </p>
+        </div>
+        <ExportReportButton
+          report="tax"
+          searchParams={{
+            from: params.from,
+            to: params.to,
+            period: params.period,
+            partner: params.partner,
+            state: params.state,
+          }}
+        />
       </div>
+
+      <p className="text-sm border border-pe-beige bg-pe-cream/60 rounded-sm p-3 text-pe-brown">
+        States appear in this report after tax is collected on a paid order shipped to that state.
+        Stripe Tax registrations alone do not create empty state columns — CO, NY, IL show now
+        because those are where tax has already been collected. As Partners ship to other registered
+        states, those states show up automatically. Use the State filter to focus on one state, or
+        Export report for the full line-item list.
+      </p>
 
       <SummaryCards
         items={[

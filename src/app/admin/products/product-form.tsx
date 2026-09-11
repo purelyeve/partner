@@ -136,8 +136,8 @@ export default function ProductForm({ product }: { product?: Product }) {
                   Visible to all Partners
                 </Label>
                 <p className="text-xs text-pe-brown mt-1">
-                  Uncheck to choose specific Partners. After unchecking, no one is selected until you
-                  assign them.
+                  Uncheck and save to choose specific Partners. After you uncheck, the list starts
+                  empty — assign only who should see it (use Clear all if leftovers remain).
                 </p>
               </div>
             </div>

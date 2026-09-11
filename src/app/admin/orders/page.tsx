@@ -1,7 +1,7 @@
 import { getAdminDb } from '@/lib/admin'
 import { requireAdmin } from '@/lib/auth'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { BuyLabelForm, LabelLinks, MarkFulfilledForm } from './fulfill-form'
+import { BuyLabelForm, CancelUnpaidPackageForm, LabelLinks, MarkFulfilledForm, RefundPackageForm } from './fulfill-form'
 import { CreateTestPaidOrderButton } from './create-test-order'
 import { DISTRIBUTOR_PROFILE } from '@/lib/constants'
 import type { Profile } from '@/lib/types'
@@ -159,6 +159,9 @@ export default async function AdminOrdersPage({
                     <td className="p-3">{formatCurrency(o.total_cents)}</td>
                     <td className="p-3">{formatDate(o.paid_at)}</td>
                     <td className="p-3">
+                      {o.status === 'awaiting_payment' && (
+                        <CancelUnpaidPackageForm orderId={o.id} />
+                      )}
                       {o.status === 'paid' && (
                         <div className="space-y-1">
                           {!(o.label_url || labelUrls.length > 0) && (
@@ -173,14 +176,24 @@ export default async function AdminOrdersPage({
                             orderId={o.id}
                             defaultTracking={o.tracking_code || ''}
                           />
+                          {!o.refunded_at && <RefundPackageForm orderId={o.id} />}
                         </div>
                       )}
                       {o.status === 'fulfilled' && (
-                        <LabelLinks
-                          labelUrl={o.label_url}
-                          labelUrls={labelUrls}
-                          tracking={o.tracking_code}
-                        />
+                        <div className="space-y-1">
+                          <LabelLinks
+                            labelUrl={o.label_url}
+                            labelUrls={labelUrls}
+                            tracking={o.tracking_code}
+                          />
+                          {!o.refunded_at && <RefundPackageForm orderId={o.id} />}
+                        </div>
+                      )}
+                      {o.status === 'cancelled' && (
+                        <p className="text-xs text-pe-brown">
+                          Cancelled
+                          {o.refunded_at ? ' (refunded)' : ''}
+                        </p>
                       )}
                     </td>
                   </tr>

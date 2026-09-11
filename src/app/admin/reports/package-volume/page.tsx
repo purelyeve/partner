@@ -4,7 +4,7 @@ import { DISTRIBUTOR_PROFILE } from '@/lib/constants'
 import { inPaidWindow, partnerSearchHaystack, resolvePeriod } from '@/lib/admin-reports'
 import { formatCurrency } from '@/lib/utils'
 import type { Profile } from '@/lib/types'
-import { FilterField, ReportFilters, SummaryCards } from '../report-ui'
+import { ExportReportButton, FilterField, ReportFilters, SummaryCards } from '../report-ui'
 
 export default async function PackageVolumeReportPage({
   searchParams,
@@ -98,11 +98,23 @@ export default async function PackageVolumeReportPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl">Company-wide package volume</h1>
-        <p className="text-sm text-pe-brown mt-1">
-          Inventory packages sold network-wide. New packages appear in the filter automatically.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl">Company-wide package volume</h1>
+          <p className="text-sm text-pe-brown mt-1">
+            Inventory packages sold network-wide. New packages appear in the filter automatically.
+          </p>
+        </div>
+        <ExportReportButton
+          report="package-volume"
+          searchParams={{
+            q: params.q,
+            from: params.from,
+            to: params.to,
+            period: params.period,
+            package: params.package,
+          }}
+        />
       </div>
 
       <SummaryCards

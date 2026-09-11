@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Purely Eve Partner Portal — Admin Walkthrough Guide</title>
+  <style>
+    @page {
+      size: letter;
+      margin: 0.7in 0.65in;
+    }
+
+    :root {
+      --brown: #794100;
+      --dark-brown: #3a2108;
+      --gold: #aa7800;
+      --cream: #f5f0e8;
+      --beige: #e8dcc8;
+      --charcoal: #1d201f;
+      --green: #2d4a2d;
+      --green-mid: #4a7c4a;
+      --white: #ffffff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--charcoal);
+      background: var(--white);
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.55;
+    }
+
+    h1, h2, h3, h4 {
+      font-family: Georgia, "Times New Roman", serif;
+      font-weight: 500;
+      color: var(--dark-brown);
+      line-height: 1.25;
+      margin: 0 0 0.45em;
+    }
+
+    p { margin: 0 0 0.7em; }
+    ul, ol { margin: 0 0 0.9em; padding-left: 1.25em; }
+    li { margin-bottom: 0.3em; }
+    a { color: var(--brown); }
+
+    /* Cover */
+    .cover {
+      page-break-after: always;
+      min-height: 9.2in;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background: linear-gradient(165deg, var(--dark-brown) 0%, #4a2a10 55%, var(--brown) 100%);
+      color: var(--cream);
+      padding: 0.85in 0.7in;
+      margin: -0.7in -0.65in 0;
+      width: calc(100% + 1.3in);
+    }
+
+    .cover-mark {
+      display: inline-block;
+      border: 1px solid rgba(245, 240, 232, 0.35);
+      padding: 0.35em 0.85em;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      font-size: 9pt;
+      color: #e8dcc8;
+    }
+
+    .cover h1 {
+      color: var(--cream);
+      font-size: 32pt;
+      margin: 0.55em 0 0.25em;
+      max-width: 9.5cm;
+    }
+
+    .cover .subtitle {
+      font-size: 14pt;
+      color: #e8dcc8;
+      margin-bottom: 1.4em;
+    }
+
+    .cover-meta {
+      border-top: 1px solid rgba(245, 240, 232, 0.25);
+      padding-top: 1em;
+      font-size: 10pt;
+      color: #e8dcc8;
+    }
+
+    .cover-meta strong { color: var(--cream); font-weight: 600; }
+
+    .gold-rule {
+      width: 3.2rem;
+      height: 3px;
+      background: var(--gold);
+      margin: 1em 0 1.2em;
+    }
+
+    /* Page chrome */
+    .doc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      border-bottom: 2px solid var(--beige);
+      padding-bottom: 0.4em;
+      margin-bottom: 1.2em;
+      font-size: 8.5pt;
+      color: var(--brown);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .section {
+      page-break-inside: avoid;
+      margin-bottom: 1.35em;
+    }
+
+    .section-break { page-break-before: always; }
+
+    h2 {
+      font-size: 16pt;
+      border-bottom: 1px solid var(--beige);
+      padding-bottom: 0.3em;
+      margin-top: 0.2em;
+      margin-bottom: 0.75em;
+    }
+
+    h3 {
+      font-size: 12pt;
+      color: var(--brown);
+      margin-top: 1em;
+    }
+
+    /* Blocks */
+    .block {
+      border-radius: 4px;
+      padding: 0.85em 1em;
+      margin: 0.9em 0;
+      page-break-inside: avoid;
+    }
+
+    .block-title {
+      font-size: 8.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 700;
+      margin: 0 0 0.45em;
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+
+    .block-tip {
+      background: #f3f7f3;
+      border-left: 4px solid var(--green-mid);
+    }
+    .block-tip .block-title { color: var(--green); }
+
+    .block-note {
+      background: var(--cream);
+      border-left: 4px solid var(--gold);
+    }
+    .block-note .block-title { color: var(--gold); }
+
+    .block-warn {
+      background: #faf6f0;
+      border-left: 4px solid var(--brown);
+    }
+    .block-warn .block-title { color: var(--dark-brown); }
+
+    .block-path {
+      background: #fff;
+      border: 1px solid var(--beige);
+      border-left: 4px solid var(--dark-brown);
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 9.5pt;
+    }
+    .block-path .block-title {
+      font-family: "Segoe UI", Arial, sans-serif;
+      color: var(--dark-brown);
+    }
+
+    .steps {
+      counter-reset: step;
+      list-style: none;
+      padding: 0;
+      margin: 0.6em 0 1em;
+    }
+
+    .steps li {
+      position: relative;
+      padding: 0.65em 0.75em 0.65em 2.6em;
+      margin-bottom: 0.45em;
+      background: var(--cream);
+      border: 1px solid var(--beige);
+      border-radius: 4px;
+      page-break-inside: avoid;
+    }
+
+    .steps li::before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      left: 0.55em;
+      top: 0.55em;
+      width: 1.45em;
+      height: 1.45em;
+      border-radius: 50%;
+      background: var(--dark-brown);
+      color: var(--cream);
+      font-size: 9pt;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1.45em;
+      text-align: center;
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75em;
+      margin: 0.8em 0;
+    }
+
+    .card {
+      border: 1px solid var(--beige);
+      border-radius: 4px;
+      padding: 0.75em 0.9em;
+      background: #fff;
+      page-break-inside: avoid;
+    }
+
+    .card h4 {
+      font-size: 10.5pt;
+      margin-bottom: 0.35em;
+      color: var(--dark-brown);
+    }
+
+    .card p:last-child { margin-bottom: 0; }
+
+    .nav-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4em;
+      margin: 0.6em 0 1em;
+    }
+
+    .pill {
+      display: inline-block;
+      background: var(--dark-brown);
+      color: var(--cream);
+      padding: 0.25em 0.7em;
+      border-radius: 999px;
+      font-size: 8.5pt;
+      letter-spacing: 0.04em;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.7em 0 1em;
+      font-size: 9.5pt;
+    }
+
+    th {
+      text-align: left;
+      background: var(--cream);
+      color: var(--dark-brown);
+      padding: 0.45em 0.55em;
+      border: 1px solid var(--beige);
+      font-family: "Segoe UI", Arial, sans-serif;
+      font-size: 8.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    td {
+      padding: 0.45em 0.55em;
+      border: 1px solid var(--beige);
+      vertical-align: top;
+    }
+
+    .toc ol {
+      list-style: none;
+      padding: 0;
+      counter-reset: toc;
+    }
+
+    .toc li {
+      counter-increment: toc;
+      padding: 0.55em 0.7em;
+      border-bottom: 1px solid var(--beige);
+      display: flex;
+      gap: 0.75em;
+      align-items: baseline;
+    }
+
+    .toc li::before {
+      content: counter(toc, decimal-leading-zero);
+      color: var(--gold);
+      font-family: Georgia, serif;
+      font-size: 12pt;
+      min-width: 1.6em;
+    }
+
+    .footer-note {
+      margin-top: 1.5em;
+      padding-top: 0.8em;
+      border-top: 1px solid var(--beige);
+      font-size: 9pt;
+      color: var(--brown);
+    }
+
+    .muted { color: var(--brown); }
+    strong { color: var(--dark-brown); }
+  </style>
+</head>
+<body>
+
+  <!-- COVER -->
+  <section class="cover">
+    <div>
+      <div class="cover-mark">Purely Eve LLC</div>
+      <h1>Admin Walkthrough Guide</h1>
+      <div class="gold-rule"></div>
+      <p class="subtitle">Partner Portal — how to run day-to-day admin tasks</p>
+      <p style="max-width: 28em; color: #e8dcc8;">
+        A practical guide for approving Partners, managing the catalog, fulfilling inventory
+        package orders, and reading reports. Written for non-technical use.
+      </p>
+    </div>
+    <div class="cover-meta">
+      <p><strong>Document:</strong> Admin Walkthrough Guide</p>
+      <p><strong>Portal:</strong> Purely Eve Distributor / Partner Portal</p>
+      <p><strong>Version:</strong> 1.0 · Milestone 4 handover</p>
+      <p><strong>Date:</strong> September 2026</p>
+    </div>
+  </section>
+
+  <!-- TOC -->
+  <div class="doc-header">
+    <span>Purely Eve Partner Portal</span>
+    <span>Admin Walkthrough</span>
+  </div>
+
+  <h2>Contents</h2>
+  <div class="toc">
+    <ol>
+      <li>Signing in &amp; the admin menu</li>
+      <li>Overview dashboard</li>
+      <li>Approving Partners &amp; resale documents</li>
+      <li>Products &amp; inventory packages</li>
+      <li>Who can see which products (assignments)</li>
+      <li>Inventory package orders (fulfillment)</li>
+      <li>Reports (the seven admin reports)</li>
+      <li>Company Stripe view</li>
+      <li>Go-live checklist (test → live)</li>
+      <li>Quick reference</li>
+    </ol>
+  </div>
+
+  <div class="block block-note">
+    <p class="block-title">How to use this guide</p>
+    <p style="margin:0">
+      Follow the numbered steps in each section. Gold callouts are tips. Brown callouts flag
+      important business rules. Menu paths look like this: <strong>Admin → Reports → Tax</strong>.
+    </p>
+  </div>
+
+  <!-- 1 -->
+  <div class="section section-break">
+    <div class="doc-header">
+      <span>Purely Eve Partner Portal</span>
+      <span>Section 01</span>
+    </div>
+    <h2>1. Signing in &amp; the admin menu</h2>
+    <p>
+      Open your portal URL and sign in with the admin account credentials provided at handover.
+      After login you land on the <strong>Admin overview</strong>.
+    </p>
+
+    <div class="block block-path">
+      <p class="block-title">Top navigation</p>
+      <div class="nav-pills">
+        <span class="pill">Overview</span>
+        <span class="pill">Distributors</span>
+        <span class="pill">Products</span>
+        <span class="pill">Inventory orders</span>
+        <span class="pill">Reports</span>
+      </div>
+      <p style="margin:0" class="muted">Use Sign out in the header when you are finished.</p>
+    </div>
+
+    <div class="block block-tip">
+      <p class="block-title">Tip</p>
+      <p style="margin:0">
+        Bookmark the admin URL. Partners use a separate Partner login area and cannot see admin screens.
+      </p>
+    </div>
+  </div>
+
+  <!-- 2 -->
+  <div class="section">
+    <h2>2. Overview dashboard</h2>
+    <p>The overview gives a quick pulse of work waiting for you:</p>
+    <div class="grid-2">
+      <div class="card">
+        <h4>Pending applications</h4>
+        <p>New Partner registrations waiting for approve / decline.</p>
+      </div>
+      <div class="card">
+        <h4>Documents to review</h4>
+        <p>Resale certificates (and related uploads) awaiting accept / reject.</p>
+      </div>
+      <div class="card">
+        <h4>Orders awaiting fulfillment</h4>
+        <p>Paid inventory package orders that still need a shipping label.</p>
+      </div>
+      <div class="card">
+        <h4>Recent applications</h4>
+        <p>Latest submissions — click a business name to open the Partner file.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 -->
+  <div class="section section-break">
+    <div class="doc-header">
+      <span>Purely Eve Partner Portal</span>
+      <span>Section 03</span>
+    </div>
+    <h2>3. Approving Partners &amp; resale documents</h2>
+    <p>
+      Partners register in the portal (after coming through your Shopify application flow).
+      They accept the Partner Agreement and upload a resale certificate during signup.
+      You still review and activate them here.
+    </p>
+
+    <h3>Approve a registration</h3>
+    <ol class="steps">
+      <li>Go to <strong>Distributors</strong>.</li>
+      <li>Open the Partner with status <strong>Pending</strong>.</li>
+      <li>Review contact details, business info, and agreement acceptance.</li>
+      <li>Choose <strong>Approve</strong> (or Decline with a note if needed).</li>
+    </ol>
+
+    <h3>Accept the resale certificate (required before packages)</h3>
+    <ol class="steps">
+      <li>On the same Partner page, open the uploaded resale document (view / download).</li>
+      <li>If it looks correct, mark it <strong>Accepted</strong>.</li>
+      <li>If it is wrong or incomplete, reject it so the Partner can re-upload.</li>
+    </ol>
+
+    <div class="block block-warn">
+      <p class="block-title">Business rule</p>
+      <p style="margin:0">
+        A Partner cannot purchase inventory packages until (1) their registration is approved and
+        (2) their resale certificate is accepted. Inventory package orders are prepaid before you ship.
+      </p>
+    </div>
+
+    <h3>Suspend or remove</h3>
+    <p>
+      On an approved Partner you can <strong>Suspend</strong> or <strong>Remove</strong> access.
+      Deleting a Partner is permanent — only use when you are sure.
+    </p>
+  </div>
+
+  <!-- 4 -->
+  <div class="section section-break">
+    <div class="doc-header">
+      <span>Purely Eve Partner Portal</span>
+      <span>Section 04</span>
+    </div>
+    <h2>4. Products &amp; inventory packages</h2>
+    <p>
+      Under <strong>Products</strong> you manage two catalogs: consumer products Partners sell to
+      customers, and inventory packages Partners buy from the company.
+    </p>
+
+    <div class="grid-2">
+      <div class="card">
+        <h4>Consumer products</h4>
+        <p>
+          Name, description, image, weight, and three prices you set:
+          retail, wholesale, and introductory. Partners cannot edit price.
+        </p>
+      </div>
+      <div class="card">
+        <h4>Inventory packages</h4>
+        <p>
+          Starter (20 units), Growth (40 units), plus any future packages you add.
+          Price, unit count, weight/dims, image, and active flag.
+        </p>
+      </div>
+    </div>
+
+    <h3>Add or edit a consumer product</h3>
+    <ol class="steps">
+      <li>Go to <strong>Products</strong> → <strong>Add product</strong> (or open an existing one).</li>
+      <li>Enter SKU, name, description, image, weight, and the three prices.</li>
+      <li>Save. The product is available for Partner invoices according to visibility rules below.</li>
+    </ol>
+
+    <h3>Add or edit an inventory package</h3>
+    <ol class="steps">
+      <li>On Products, use the inventory packages section → add or edit.</li>
+      <li>Set name, SKU, unit count (how many serums the package credits), price, shipping weight/dims, image.</li>
+      <li>Leave <strong>Active</strong> on when Partners should be able to buy it.</li>
+    </ol>
+
+    <div class="block block-tip">
+      <p class="block-title">Tip — $1 test package</p>
+      <p style="margin:0">
+        For Stripe practice, use a low-price test package. Deactivate or hide it before real Partner
+        purchases so nobody buys the test SKU by mistake.
+      </p>
+    </div>
+  </div>
+
+  <!-- 5 -->
+  <div class="section section-break">
+    <div class="doc-header">
+      <span>Purely Eve Partner Portal</span>
+      <span>Section 05</span>
+    </div>
+    <h2>5. Who can see which products (assignments)</h2>
+    <p>
+      Each product and package can be <strong>visible to all Partners</strong>, or limited to
+      selected Partners.
+    </p>
+
+    <ol class="steps">
+      <li>Open the product or package detail page.</li>
+      <li>If “visible to all” is checked, every approved Partner can see it.</li>
+      <li>If you uncheck it, the list starts empty — nobody is assigned yet.</li>
+      <li>Search Partners (alphabetical list) and assign only who should see that SKU or package.</li>
+    </ol>
+
+    <div class="block block-note">
+      <p class="block-title">When to use limited visibility</p>
+      <p style="margin:0">
+        Use this for intro-only offers, regional pilots, or special packages that should not appear
+        in every Partner’s catalog.
+      </p>
+    </div>
+  </div>
+
+  <!-- 6 -->
+  <div class="section section-break">
+    <div class="doc-header">
+      <span>Purely Eve Partner Portal</span>
+      <span>Section 06</span>
+    </div>
+    <h2>6. Inventory package orders (fulfillment)</h2>
+    <p>
+      When a Partner pays for a Starter / Growth (or other) package, the order appears under
+      <strong>Inventory orders</strong>. You ship from the company side; labels are purchased on the
+      company EasyPost account.
+    </p>
+
+    <ol class="steps">
+      <li>Go to <strong>Inventory orders</strong>.</li>
+      <li>Filter by status (e.g. Paid), date, or Partner name / order number.</li>
+      <li>Open a paid order and buy / print the shipping label.</li>
+      <li>Mark fulfilled when shipped. Stock is credited to the Partner when payment completes.</li>
+    </ol>
+
+    <div class="block block-warn">
+      <p class="block-title">Shipping model (locked)</p>
+      <p style="margin:0">
+        Company pays EasyPost for inventory-package labels to Partners.
+        For Partner → customer orders, Partners collect shipping on the invoice; that shipping amount
+        comes to the company (application fee) and the company buys the customer label.
+      </p>
+    </div>
+  </div>
+
+  <!-- 7 -->
+  <div class="section section-break">
+    <div class="doc-header">
+      <span>Purely Eve Partner Portal</span>
+      <span>Section 07</span>
+    </div>
+    <h2>7. Reports (the seven admin reports)</h2>
+    <p>Open <strong>Reports</strong> from the top menu. Each report supports filters; new packages appear automatically.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:8%">#</th>
+          <th style="width:32%">Report</th>
+          <th>What you get</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>Partner inventory package sales</td>
+          <td>Per Partner: date ordered, amount, volume. Flags Partners with no package order in 90+ days. Filter by name and dates.</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>Company-wide package volume</td>
+          <td>Month, YTD, lifetime units/volume. Filter by Partner, dates, and package (e.g. 20 vs 40 units).</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>Partner customer orders</td>
+          <td>Retail vs wholesale per Partner; month / YTD / lifetime. Click an invoice for customer + line items.</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td>Company-wide customer volume</td>
+          <td>All Partner customer sales (excludes inventory packages). Filter retail / wholesale / dates.</td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td>Tax collected</td>
+          <td>Tax by Partner and ship-to state for month, YTD, or custom range.</td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td>Shipping collected</td>
+          <td>Customer shipping collected for the company, with fulfilled vs pending label status.</td>
+        </tr>
+        <tr>
+          <td>7</td>
+          <td>Company Stripe</td>
+          <td>Platform balance, shipping fees, package sales on the company account, recent payouts.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="block block-tip">
+      <p class="block-title">Partner reports</p>
+      <p style="margin:0">
+        Partners also have a <strong>Reports</strong> page for their own sales, tax, and CSV download.
+        They never see network-wide admin totals.
+      </p>
+    </div>
+  </div>
+
+  <!-- 8 -->
+  <div class="section section-break">
+    <div class="doc-header">
+      <span>Purely Eve Partner Portal</span>
+      <span>Section 08</span>
+    </div>
+    <h2>8. Company Stripe view</h2>
+    <p>Path: <strong>Admin → Reports → Company Stripe</strong>.</p>
+    <ul>
+      <li><strong>Available / Pending</strong> — platform Stripe balance.</li>
+      <li><strong>Shipping collected</strong> — amounts taken from Partner checkouts for postage.</li>
+      <li><strong>Inventory packages</strong> — paid package volume on the company account for the selected period.</li>
+      <li><strong>Balance transactions &amp; payouts</strong> — recent activity (full ledger also lives in the Stripe Dashboard).</li>
+    </ul>
+    <div class="block block-note">
+      <p class="block-title">Reminder</p>
+      <p style="margin:0">
+        Customer card payments land on each Partner’s connected Stripe account. The company receives
+        shipping application fees and inventory-package payments. Card processing fees on customer
+        sales are absorbed by the Partner.
+      </p>
+    </div>
+  </div>
+
+  <!-- 9 -->
+  <div class="section section-break">
+    <div class="doc-header">
+      <span>Purely Eve Partner Portal</span>
+      <span>Section 09</span>
+    </div>
+    <h2>9. Go-live checklist (test → live)</h2>
+    <ol class="steps">
+      <li>Complete a full dry run in Stripe <strong>test</strong> mode with the $1 test package (pay, label, stock credit).</li>
+      <li>Confirm Stripe Tax registrations for states you sell into (Test first, then Live).</li>
+      <li>Confirm EasyPost company key and label buying work on a paid package order.</li>
+      <li>Switch portal env keys to Stripe <strong>live</strong> only when ready for real money.</li>
+      <li>Deactivate the $1 test package before Partners place real Starter / Growth orders.</li>
+      <li>Have one trusted Partner place a small live package order and verify payout + fulfillment.</li>
+    </ol>
+
+    <div class="block block-warn">
+      <p class="block-title">Do not skip</p>
+      <p style="margin:0">
+        Never mix test and live keys. After switching to live, run one controlled real purchase
+        before inviting the full Partner group.
+      </p>
+    </div>
+  </div>
+
+  <!-- 10 -->
+  <div class="section section-break">
+    <div class="doc-header">
+      <span>Purely Eve Partner Portal</span>
+      <span>Section 10</span>
+    </div>
+    <h2>10. Quick reference</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Task</th>
+          <th>Where</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Approve / decline Partner</td>
+          <td>Distributors → open Partner</td>
+        </tr>
+        <tr>
+          <td>Accept resale certificate</td>
+          <td>Distributors → documents on Partner page</td>
+        </tr>
+        <tr>
+          <td>Add consumer SKU</td>
+          <td>Products → Add product</td>
+        </tr>
+        <tr>
+          <td>Add / edit package (20, 40, future)</td>
+          <td>Products → inventory packages</td>
+        </tr>
+        <tr>
+          <td>Limit who sees a SKU/package</td>
+          <td>Product or package detail → assignments</td>
+        </tr>
+        <tr>
+          <td>Ship a package order</td>
+          <td>Inventory orders</td>
+        </tr>
+        <tr>
+          <td>Sales / tax / shipping reports</td>
+          <td>Reports</td>
+        </tr>
+        <tr>
+          <td>Company balance &amp; fees</td>
+          <td>Reports → Company Stripe</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="block block-note">
+      <p class="block-title">Pricing reminder (set by admin only)</p>
+      <p style="margin:0">
+        Retail (DTC) · Wholesale (business/spa) · Introductory (30-day Partner promo).
+        Partners choose customer type on the invoice; prices fill in read-only.
+      </p>
+    </div>
+
+    <div class="footer-note">
+      <p>
+        <strong>Purely Eve Partner Portal — Admin Walkthrough Guide v1.0</strong><br />
+        Prepared for handover with Milestone 4. For questions about agreed scope, contact your
+        developer through Freelancer.com.
+      </p>
+    </div>
+  </div>
+
+</body>
+</html>

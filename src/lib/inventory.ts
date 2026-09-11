@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { appUrl, emailShell, sendEmail } from '@/lib/email'
-import { LOW_STOCK_THRESHOLD } from '@/lib/constants'
+import { CONSUMER_SERUM_SKU, LOW_STOCK_THRESHOLD } from '@/lib/constants'
 
 /** Credit invoice line quantities back once (on refund / cancel of a paid invoice). */
 export async function restoreInventoryForRefundedInvoice(invoiceId: string): Promise<void> {
@@ -60,6 +60,56 @@ export async function restoreInventoryForRefundedInvoice(invoiceId: string): Pro
     .from('invoices')
     .update({ inventory_restored_at: new Date().toISOString() })
     .eq('id', invoiceId)
+}
+
+/**
+ * Reverse stock credited by a paid inventory package order (on admin refund).
+ * Uses CONSUMER_SERUM_SKU — same SKU the package_paid trigger credits.
+ */
+export async function reverseInventoryForRefundedPackageOrder(orderId: string): Promise<void> {
+  const admin = createAdminClient()
+  const { data: order } = await admin
+    .from('package_orders')
+    .select('id, distributor_id, unit_count_snapshot, quantity, refunded_at')
+    .eq('id', orderId)
+    .single()
+
+  if (!order || !order.refunded_at) return
+
+  const units = (order.unit_count_snapshot ?? 0) * (order.quantity ?? 1)
+  if (units <= 0) return
+
+  const sku = CONSUMER_SERUM_SKU
+
+  const { data: inv } = await admin
+    .from('distributor_inventory')
+    .select('quantity_on_hand, low_stock_threshold')
+    .eq('distributor_id', order.distributor_id)
+    .eq('sku', sku)
+    .maybeSingle()
+
+  const prev = inv?.quantity_on_hand ?? 0
+  const next = Math.max(0, prev - units)
+  const threshold = inv?.low_stock_threshold ?? LOW_STOCK_THRESHOLD
+
+  await admin.from('distributor_inventory').upsert(
+    {
+      distributor_id: order.distributor_id,
+      sku,
+      quantity_on_hand: next,
+      low_stock_threshold: threshold,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'distributor_id,sku' },
+  )
+
+  await admin.from('inventory_movements').insert({
+    distributor_id: order.distributor_id,
+    sku,
+    delta: -units,
+    reason: 'package_refund',
+    reference_id: orderId,
+  })
 }
 
 /** Deduct invoice line quantities from partner inventory once (on payment). */

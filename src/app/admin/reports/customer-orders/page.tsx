@@ -5,7 +5,7 @@ import { DISTRIBUTOR_PROFILE } from '@/lib/constants'
 import { inPaidWindow, partnerSearchHaystack, resolvePeriod } from '@/lib/admin-reports'
 import { customerTypeLabel, formatCurrency, formatDate } from '@/lib/utils'
 import type { Profile } from '@/lib/types'
-import { FilterField, ReportFilters, SummaryCards } from '../report-ui'
+import { ExportReportButton, FilterField, ReportFilters, SummaryCards } from '../report-ui'
 
 export default async function CustomerOrdersReportPage({
   searchParams,
@@ -112,12 +112,25 @@ export default async function CustomerOrdersReportPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl">Partner customer orders</h1>
-        <p className="text-sm text-pe-brown mt-1">
-          Paid customer invoices by Partner, split retail vs wholesale. Click an invoice for full
-          detail.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl">Partner customer orders</h1>
+          <p className="text-sm text-pe-brown mt-1">
+            Paid customer invoices by Partner, split retail vs wholesale. Click an invoice for full
+            detail.
+          </p>
+        </div>
+        <ExportReportButton
+          report="customer-orders"
+          searchParams={{
+            q: params.q,
+            from: params.from,
+            to: params.to,
+            period: params.period,
+            type: params.type,
+            partner: params.partner,
+          }}
+        />
       </div>
 
       <SummaryCards

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import AssignmentToggle from './assignment-toggle'
 import PackageAssignmentToggle from './package-assignment-toggle'
+import ClearAssignmentsButton from './clear-assignments-button'
 
 export type PartnerAssignmentRow = {
   id: string
@@ -47,18 +48,23 @@ export default function PartnerAssignmentPanel({
         Only assigned Partners see this {entityLabel}. Nothing is selected by default — assign the
         Partners who should have access. {assignedCount} of {partners.length} assigned.
       </p>
-      <div>
-        <label htmlFor="partnerSearch" className="text-xs uppercase tracking-wider text-pe-brown">
-          Search Partners
-        </label>
-        <input
-          id="partnerSearch"
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Name, business, or email"
-          className="mt-1 w-full max-w-md"
-        />
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-[200px]">
+          <label htmlFor="partnerSearch" className="text-xs uppercase tracking-wider text-pe-brown">
+            Search Partners
+          </label>
+          <input
+            id="partnerSearch"
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Name, business, or email"
+            className="mt-1 w-full max-w-md"
+          />
+        </div>
+        {assignedCount > 0 && (
+          <ClearAssignmentsButton entityType={entityType} entityId={entityId} />
+        )}
       </div>
       {!partners.length ? (
         <p className="text-sm text-pe-brown">No approved Partners yet.</p>

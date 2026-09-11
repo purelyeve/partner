@@ -6,7 +6,7 @@ import { DISTRIBUTOR_PROFILE } from '@/lib/constants'
 import { inPaidWindow, resolvePeriod } from '@/lib/admin-reports'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import type { Profile } from '@/lib/types'
-import { FilterField, ReportFilters, SummaryCards } from '../report-ui'
+import { ExportReportButton, FilterField, ReportFilters, SummaryCards } from '../report-ui'
 
 export default async function ShippingReportPage({
   searchParams,
@@ -88,12 +88,24 @@ export default async function ShippingReportPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl">Shipping collected</h1>
-        <p className="text-sm text-pe-brown mt-1">
-          Customer shipping charged on invoices (company share for postage). Shows whether the label
-          was purchased yet.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl">Shipping collected</h1>
+          <p className="text-sm text-pe-brown mt-1">
+            Customer shipping charged on invoices (company share for postage). Shows whether the label
+            was purchased yet.
+          </p>
+        </div>
+        <ExportReportButton
+          report="shipping"
+          searchParams={{
+            from: params.from,
+            to: params.to,
+            period: params.period,
+            partner: params.partner,
+            status: params.status,
+          }}
+        />
       </div>
 
       <SummaryCards
