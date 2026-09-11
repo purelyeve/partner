@@ -74,7 +74,7 @@ export default async function PartnerDashboardPage() {
         <a
           href="/docs/Purely-Eve-Partner-Walkthrough-Guide.pdf"
           download
-          className="inline-flex items-center justify-center px-4 py-2 text-sm bg-pe-gold text-white rounded-sm hover:bg-pe-brown"
+          className="inline-flex items-center justify-center px-4 py-2.5 text-sm tracking-wide rounded-sm bg-pe-brown !text-white hover:bg-pe-dark-brown hover:!text-white"
         >
           Download guide
         </a>
