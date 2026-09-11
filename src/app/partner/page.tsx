@@ -64,6 +64,22 @@ export default async function PartnerDashboardPage() {
         <p className="text-pe-brown">{distributor.business_name}</p>
       </div>
 
+      <Card className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 className="text-lg">Partner Walkthrough Guide</h2>
+          <p className="text-sm text-pe-brown mt-1">
+            Step-by-step PDF for setup, packages, invoicing, shipping, refunds, and reports.
+          </p>
+        </div>
+        <a
+          href="/docs/Purely-Eve-Partner-Walkthrough-Guide.pdf"
+          download
+          className="inline-flex items-center justify-center px-4 py-2 text-sm bg-pe-dark-brown text-pe-cream rounded-sm hover:bg-pe-brown"
+        >
+          Download guide
+        </a>
+      </Card>
+
       {step === 'pending' && (
         <Alert variant="info">
           Your Partner registration is under review. You will receive an email once a decision has
@@ -164,6 +180,9 @@ export default async function PartnerDashboardPage() {
             <Link href="/partner/inventory" className="text-sm">
               Inventory →
             </Link>
+            <a href="/docs/Purely-Eve-Partner-Walkthrough-Guide.pdf" download className="text-sm">
+              Walkthrough guide ↓
+            </a>
           </div>
         </Card>
       </div>
