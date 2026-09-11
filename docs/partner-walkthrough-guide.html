@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Purely Eve Partner Portal — Partner Walkthrough Guide</title>
+  <style>
+    @page { size: letter; margin: 0.7in 0.65in; }
+    :root {
+      --brown: #794100;
+      --dark-brown: #3a2108;
+      --gold: #aa7800;
+      --cream: #f5f0e8;
+      --beige: #e8dcc8;
+      --charcoal: #1d201f;
+      --green: #2d4a2d;
+      --green-mid: #4a7c4a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--charcoal);
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.55;
+    }
+    h1, h2, h3, h4 {
+      font-family: Georgia, "Times New Roman", serif;
+      font-weight: 500;
+      color: var(--dark-brown);
+      line-height: 1.25;
+      margin: 0 0 0.45em;
+    }
+    p { margin: 0 0 0.7em; }
+    ul, ol { margin: 0 0 0.9em; padding-left: 1.25em; }
+    li { margin-bottom: 0.3em; }
+    .cover {
+      page-break-after: always;
+      min-height: 9.2in;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background: linear-gradient(165deg, var(--dark-brown) 0%, #4a2a10 55%, var(--brown) 100%);
+      color: var(--cream);
+      padding: 0.85in 0.7in;
+      margin: -0.7in -0.65in 0;
+      width: calc(100% + 1.3in);
+    }
+    .cover-mark {
+      display: inline-block;
+      border: 1px solid rgba(245, 240, 232, 0.35);
+      padding: 0.35em 0.85em;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      font-size: 9pt;
+      color: #e8dcc8;
+    }
+    .cover h1 { color: var(--cream); font-size: 30pt; margin: 0.55em 0 0.25em; max-width: 11cm; }
+    .cover .subtitle { font-size: 14pt; color: #e8dcc8; margin-bottom: 1.4em; }
+    .cover-meta {
+      border-top: 1px solid rgba(245, 240, 232, 0.25);
+      padding-top: 1em;
+      font-size: 10pt;
+      color: #e8dcc8;
+    }
+    .cover-meta strong { color: var(--cream); }
+    .gold-rule { width: 3.2rem; height: 3px; background: var(--gold); margin: 1em 0 1.2em; }
+    .doc-header {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 2px solid var(--beige);
+      padding-bottom: 0.4em;
+      margin-bottom: 1.2em;
+      font-size: 8.5pt;
+      color: var(--brown);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .section { page-break-inside: avoid; margin-bottom: 1.35em; }
+    .section-break { page-break-before: always; }
+    h2 {
+      font-size: 16pt;
+      border-bottom: 1px solid var(--beige);
+      padding-bottom: 0.3em;
+      margin-bottom: 0.75em;
+    }
+    h3 { font-size: 12pt; color: var(--brown); margin-top: 1em; }
+    .block {
+      border-radius: 4px;
+      padding: 0.85em 1em;
+      margin: 0.9em 0;
+      page-break-inside: avoid;
+    }
+    .block-title {
+      font-size: 8.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 700;
+      margin: 0 0 0.45em;
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+    .block-tip { background: #f3f7f3; border-left: 4px solid var(--green-mid); }
+    .block-tip .block-title { color: var(--green); }
+    .block-note { background: var(--cream); border-left: 4px solid var(--gold); }
+    .block-note .block-title { color: var(--gold); }
+    .block-warn { background: #faf6f0; border-left: 4px solid var(--brown); }
+    .block-warn .block-title { color: var(--dark-brown); }
+    .steps { counter-reset: step; list-style: none; padding: 0; margin: 0.6em 0 1em; }
+    .steps li {
+      position: relative;
+      padding: 0.65em 0.75em 0.65em 2.6em;
+      margin-bottom: 0.45em;
+      background: var(--cream);
+      border: 1px solid var(--beige);
+      border-radius: 4px;
+      page-break-inside: avoid;
+    }
+    .steps li::before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      left: 0.55em;
+      top: 0.55em;
+      width: 1.45em;
+      height: 1.45em;
+      border-radius: 50%;
+      background: var(--dark-brown);
+      color: var(--cream);
+      font-size: 9pt;
+      font-weight: 700;
+      line-height: 1.45em;
+      text-align: center;
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75em; margin: 0.8em 0; }
+    .card {
+      border: 1px solid var(--beige);
+      border-radius: 4px;
+      padding: 0.75em 0.9em;
+      background: #fff;
+      page-break-inside: avoid;
+    }
+    .card h4 { font-size: 10.5pt; margin-bottom: 0.35em; }
+    .card p:last-child { margin-bottom: 0; }
+    .nav-pills { display: flex; flex-wrap: wrap; gap: 0.35em; margin: 0.5em 0 0.8em; }
+    .pill {
+      display: inline-block;
+      background: var(--dark-brown);
+      color: var(--cream);
+      padding: 0.22em 0.65em;
+      border-radius: 999px;
+      font-size: 8pt;
+      letter-spacing: 0.03em;
+    }
+    table { width: 100%; border-collapse: collapse; margin: 0.7em 0 1em; font-size: 9.5pt; }
+    th {
+      text-align: left;
+      background: var(--cream);
+      color: var(--dark-brown);
+      padding: 0.45em 0.55em;
+      border: 1px solid var(--beige);
+      font-size: 8.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+    td { padding: 0.45em 0.55em; border: 1px solid var(--beige); vertical-align: top; }
+    .toc ol { list-style: none; padding: 0; counter-reset: toc; }
+    .toc li {
+      counter-increment: toc;
+      padding: 0.5em 0.7em;
+      border-bottom: 1px solid var(--beige);
+      display: flex;
+      gap: 0.75em;
+      align-items: baseline;
+    }
+    .toc li::before {
+      content: counter(toc, decimal-leading-zero);
+      color: var(--gold);
+      font-family: Georgia, serif;
+      font-size: 12pt;
+      min-width: 1.6em;
+    }
+    .footer-note {
+      margin-top: 1.5em;
+      padding-top: 0.8em;
+      border-top: 1px solid var(--beige);
+      font-size: 9pt;
+      color: var(--brown);
+    }
+  </style>
+</head>
+<body>
+
+  <section class="cover">
+    <div>
+      <div class="cover-mark">Purely Eve LLC</div>
+      <h1>Partner Walkthrough Guide</h1>
+      <div class="gold-rule"></div>
+      <p class="subtitle">Your Partner Portal — day-to-day steps</p>
+      <p style="max-width: 28em; color: #e8dcc8;">
+        How to connect payouts, buy inventory packages, invoice customers, collect payment,
+        ship orders, and read your reports.
+      </p>
+    </div>
+    <div class="cover-meta">
+      <p><strong>Document:</strong> Partner Walkthrough Guide</p>
+      <p><strong>Portal:</strong> Purely Eve Partner Portal</p>
+      <p><strong>Version:</strong> 1.0</p>
+      <p><strong>Date:</strong> September 2026</p>
+    </div>
+  </section>
+
+  <div class="doc-header">
+    <span>Purely Eve Partner Portal</span>
+    <span>Partner Walkthrough</span>
+  </div>
+  <h2>Contents</h2>
+  <div class="toc">
+    <ol>
+      <li>Sign in &amp; menu</li>
+      <li>First-time setup (profile + Stripe)</li>
+      <li>Buy inventory packages</li>
+      <li>Inventory on hand</li>
+      <li>Customers</li>
+      <li>Create &amp; send invoices</li>
+      <li>Fulfillment, labels &amp; refunds</li>
+      <li>Payouts &amp; reports</li>
+      <li>Quick reference</li>
+    </ol>
+  </div>
+  <div class="block block-note">
+    <p class="block-title">How to use this guide</p>
+    <p style="margin:0">
+      Follow the numbered steps. Gold boxes are tips. Brown boxes are important rules.
+      Menu paths look like <strong>Packages</strong> or <strong>Invoices → New invoice</strong>.
+    </p>
+  </div>
+
+  <div class="section section-break">
+    <div class="doc-header"><span>Purely Eve Partner Portal</span><span>Section 01</span></div>
+    <h2>1. Sign in &amp; menu</h2>
+    <p>Open the Partner Portal link from Purely Eve and sign in with the email and password you registered.</p>
+    <div class="nav-pills">
+      <span class="pill">Dashboard</span>
+      <span class="pill">Inventory</span>
+      <span class="pill">Customers</span>
+      <span class="pill">Invoices</span>
+      <span class="pill">Fulfillments</span>
+      <span class="pill">Packages</span>
+      <span class="pill">Payments</span>
+      <span class="pill">Reports</span>
+      <span class="pill">Profile</span>
+    </div>
+    <div class="block block-tip">
+      <p class="block-title">Tip</p>
+      <p style="margin:0">Use Sign out when finished, especially on a shared computer.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>2. First-time setup (profile + Stripe)</h2>
+    <h3>Confirm your ship-from address</h3>
+    <ol class="steps">
+      <li>Open <strong>Profile</strong>.</li>
+      <li>Check your mailing and fulfillment (ship-from) address. Tax and shipping rates use this.</li>
+      <li>Save any updates.</li>
+    </ol>
+    <h3>Connect Stripe (required to get paid)</h3>
+    <ol class="steps">
+      <li>Open <strong>Payments</strong>.</li>
+      <li>Start Stripe Connect onboarding and complete the Stripe-hosted steps (bank details, identity).</li>
+      <li>When charges and payouts are enabled, customer payments can land in your account.</li>
+    </ol>
+    <div class="block block-warn">
+      <p class="block-title">Fees</p>
+      <p style="margin:0">
+        Customers pay you. Stripe’s card fee (typically 2.9% + $0.30) comes out of your proceeds.
+        Shipping the customer pays on the invoice goes to Purely Eve to fund the postage label.
+      </p>
+    </div>
+    <div class="block block-note">
+      <p class="block-title">Before you can buy packages</p>
+      <p style="margin:0">
+        Purely Eve must approve your registration and accept your resale certificate. You will get
+        email when package purchasing is unlocked.
+      </p>
+    </div>
+  </div>
+
+  <div class="section section-break">
+    <div class="doc-header"><span>Purely Eve Partner Portal</span><span>Section 03</span></div>
+    <h2>3. Buy inventory packages</h2>
+    <ol class="steps">
+      <li>Go to <strong>Packages</strong>.</li>
+      <li>Choose a package (for example Starter or Growth) and continue to checkout.</li>
+      <li>Confirm ship-to details and choose a shipping rate.</li>
+      <li>Pay through Stripe. Inventory is credited when payment completes.</li>
+      <li>Purely Eve ships the package to you and may email tracking when it goes out.</li>
+    </ol>
+    <div class="block block-tip">
+      <p class="block-title">Tip</p>
+      <p style="margin:0">Package purchases are prepaid and not taxed (resale). You charge tax on retail customer sales.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>4. Inventory on hand</h2>
+    <p>Open <strong>Inventory</strong> to see units on hand. Stock increases when a package order is paid and decreases when a customer invoice is paid / fulfilled per portal rules. Low stock is highlighted so you know when to reorder packages.</p>
+  </div>
+
+  <div class="section">
+    <h2>5. Customers</h2>
+    <ol class="steps">
+      <li>Go to <strong>Customers</strong> → add a customer.</li>
+      <li>Enter name, email, phone, and billing / shipping addresses.</li>
+      <li>For wholesale (business) customers, capture resale certificate number and upload when required.</li>
+    </ol>
+  </div>
+
+  <div class="section section-break">
+    <div class="doc-header"><span>Purely Eve Partner Portal</span><span>Section 06</span></div>
+    <h2>6. Create &amp; send invoices</h2>
+    <ol class="steps">
+      <li>Go to <strong>Invoices</strong> → <strong>New invoice</strong>.</li>
+      <li>Select the customer and customer type:
+        <strong>Direct to Customer</strong> (retail / intro pricing with tax) or
+        <strong>Retail Wholesale</strong> (business pricing, typically untaxed with resale docs).</li>
+      <li>Add line items from your assigned products. Prices fill in automatically — you cannot edit price.</li>
+      <li>Choose shipping (live rates) or free shipping if offered.</li>
+      <li>Review totals (product, shipping, tax) and send. The customer gets a branded payment link email.</li>
+    </ol>
+    <div class="grid-2">
+      <div class="card">
+        <h4>Unpaid invoice</h4>
+        <p>You can resend the payment link or cancel before they pay.</p>
+      </div>
+      <div class="card">
+        <h4>After they pay</h4>
+        <p>Status becomes paid. Open Fulfillments to buy a label and ship.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section section-break">
+    <div class="doc-header"><span>Purely Eve Partner Portal</span><span>Section 07</span></div>
+    <h2>7. Fulfillment, labels &amp; refunds</h2>
+    <ol class="steps">
+      <li>Open <strong>Fulfillments</strong> (or the link from a paid invoice).</li>
+      <li>Buy the shipping label. Postage is covered by shipping already collected on the invoice.</li>
+      <li>Print the label, ship the order, and the customer receives tracking by email.</li>
+      <li>You can reprint the label later from the same order page.</li>
+    </ol>
+    <h3>Refund a paid customer order</h3>
+    <ol class="steps">
+      <li>Open the paid invoice or its fulfillment page.</li>
+      <li>Use <strong>Refund &amp; restore stock</strong>.</li>
+      <li>The customer is refunded through Stripe and inventory is put back on hand.</li>
+    </ol>
+    <div class="block block-warn">
+      <p class="block-title">Note</p>
+      <p style="margin:0">
+        If a label was already purchased, shipping that went to Purely Eve for postage may not be
+        returned (postage was spent). Refund the customer product/tax share as shown in the portal.
+      </p>
+    </div>
+  </div>
+
+  <div class="section section-break">
+    <div class="doc-header"><span>Purely Eve Partner Portal</span><span>Section 08</span></div>
+    <h2>8. Payouts &amp; reports</h2>
+    <h3>Payments</h3>
+    <p>Under <strong>Payments</strong> you can see Stripe Connect status, available / pending balance, and recent payouts. Open the payout report for fee detail on paid invoices.</p>
+    <h3>Reports</h3>
+    <ol class="steps">
+      <li>Open <strong>Reports</strong> for month, year-to-date, and lifetime sales.</li>
+      <li>Filter by date range and use <strong>Export report</strong> for a CSV download.</li>
+      <li>Click <strong>Tax collected</strong> to open tax by ship-to state (also exportable).</li>
+    </ol>
+  </div>
+
+  <div class="section section-break">
+    <div class="doc-header"><span>Purely Eve Partner Portal</span><span>Section 09</span></div>
+    <h2>9. Quick reference</h2>
+    <table>
+      <thead>
+        <tr><th>Task</th><th>Where</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Update ship-from address</td><td>Profile</td></tr>
+        <tr><td>Connect bank / Stripe</td><td>Payments</td></tr>
+        <tr><td>Buy Starter / Growth package</td><td>Packages</td></tr>
+        <tr><td>Check stock</td><td>Inventory</td></tr>
+        <tr><td>Add customer</td><td>Customers</td></tr>
+        <tr><td>Invoice &amp; payment link</td><td>Invoices</td></tr>
+        <tr><td>Buy label &amp; ship</td><td>Fulfillments</td></tr>
+        <tr><td>Refund paid order</td><td>Invoice or Fulfillments</td></tr>
+        <tr><td>Sales / tax / CSV</td><td>Reports</td></tr>
+      </tbody>
+    </table>
+    <div class="block block-note">
+      <p class="block-title">Pricing (set by Purely Eve)</p>
+      <p style="margin:0">
+        Retail, wholesale, and introductory prices are locked on your side. Choose the correct
+        customer type on the invoice and the price fills in automatically.
+      </p>
+    </div>
+    <div class="footer-note">
+      <p>
+        <strong>Purely Eve Partner Portal — Partner Walkthrough Guide v1.0</strong><br />
+        Questions about your account or inventory orders: contact Purely Eve through the channel
+        they provided when you were approved.
+      </p>
+    </div>
+  </div>
+
+</body>
+</html>

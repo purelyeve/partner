@@ -37,6 +37,16 @@ export default async function AdminProductDetailPage({
   const assignedIds = new Set((assignments ?? []).map((a) => a.distributor_id))
   const visibleToAll = product.visible_to_all !== false
 
+  // Limited mode with every Partner still assigned = leftover from the old auto-seed.
+  if (
+    !visibleToAll &&
+    (distributors?.length ?? 0) > 0 &&
+    assignedIds.size >= (distributors?.length ?? 0)
+  ) {
+    await supabase.from('distributor_product_assignments').delete().eq('product_id', id)
+    assignedIds.clear()
+  }
+
   const partnerRows = (distributors ?? []).map((d) => {
     const p = asProfile(d.profiles)
     return {

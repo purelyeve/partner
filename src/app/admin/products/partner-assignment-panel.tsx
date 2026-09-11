@@ -45,26 +45,30 @@ export default function PartnerAssignmentPanel({
   return (
     <div className="space-y-4">
       <p className="text-sm text-pe-brown">
-        Only assigned Partners see this {entityLabel}. Nothing is selected by default — assign the
-        Partners who should have access. {assignedCount} of {partners.length} assigned.
+        Only assigned Partners see this {entityLabel}. The list starts empty — assign only who should
+        have access. {assignedCount} of {partners.length} assigned.
       </p>
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-[200px]">
-          <label htmlFor="partnerSearch" className="text-xs uppercase tracking-wider text-pe-brown">
-            Search Partners
-          </label>
-          <input
-            id="partnerSearch"
-            type="search"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Name, business, or email"
-            className="mt-1 w-full max-w-md"
-          />
-        </div>
-        {assignedCount > 0 && (
+      {assignedCount > 0 && (
+        <div className="border border-pe-beige bg-pe-cream rounded-sm p-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-pe-brown">
+            Partners are currently assigned. Use Clear all to start empty, then Assign only who you
+            want.
+          </p>
           <ClearAssignmentsButton entityType={entityType} entityId={entityId} />
-        )}
+        </div>
+      )}
+      <div>
+        <label htmlFor="partnerSearch" className="text-xs uppercase tracking-wider text-pe-brown">
+          Search Partners
+        </label>
+        <input
+          id="partnerSearch"
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Name, business, or email"
+          className="mt-1 w-full max-w-md"
+        />
       </div>
       {!partners.length ? (
         <p className="text-sm text-pe-brown">No approved Partners yet.</p>

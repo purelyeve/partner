@@ -37,6 +37,17 @@ export default async function AdminPackageDetailPage({
   const assignedIds = new Set((assignments ?? []).map((a) => a.distributor_id))
   const visibleToAll = pkg.visible_to_all !== false
 
+  // Limited mode with every Partner still assigned = leftover from the old auto-seed.
+  // "Everyone" belongs on Visible to all; limited lists start empty and are opt-in.
+  if (
+    !visibleToAll &&
+    (distributors?.length ?? 0) > 0 &&
+    assignedIds.size >= (distributors?.length ?? 0)
+  ) {
+    await supabase.from('distributor_package_assignments').delete().eq('package_id', id)
+    assignedIds.clear()
+  }
+
   const partnerRows = (distributors ?? []).map((d) => {
     const p = asProfile(d.profiles)
     return {
