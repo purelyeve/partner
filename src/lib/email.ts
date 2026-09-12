@@ -17,9 +17,13 @@ export function companyNotifyEmail(): string {
   return process.env.COMPANY_NOTIFY_EMAIL ?? 'contact@purelyeve.com'
 }
 
-/** Public site URL for links in emails (never localhost in production). */
+/** Site URL for links in emails and Stripe returns (server-only; never localhost in production). */
 export function appUrl(): string {
-  const configured = (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/$/, '')
+  const configured = (
+    process.env.APP_URL ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    ''
+  ).replace(/\/$/, '')
   if (configured && !/localhost|127\.0\.0\.1/i.test(configured)) {
     return configured
   }

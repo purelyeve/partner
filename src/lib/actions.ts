@@ -115,7 +115,7 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
     password: data.password,
     options: {
       data: { full_name: data.fullName, phone: data.phone },
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
+      emailRedirectTo: `${appUrl()}/auth/callback`,
     },
   })
 
@@ -738,8 +738,8 @@ export async function createPackageCheckoutAction(_prev: ActionState, formData: 
   const stripe = getStripe()
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
-    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/partner/packages/success?order=${order.id}`,
-    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/partner/packages?cancelled=1`,
+    success_url: `${appUrl()}/partner/packages/success?order=${order.id}`,
+    cancel_url: `${appUrl()}/partner/packages?cancelled=1`,
     customer_email: user.email,
     metadata: {
       order_id: order.id,
